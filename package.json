@@ -5,6 +5,17 @@
   "author": "Anomira <sdk@anomira.io>",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jad-creations/anomira-node.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jad-creations/anomira-node/issues"
+  },
+  "homepage": "https://github.com/jad-creations/anomira-node#readme",
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
       "import": {
@@ -22,7 +33,9 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "bin": {
     "anomira": "./dist/cli.cjs"
@@ -32,17 +45,25 @@
     "dev": "tsup --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@secretlint/core": "^13.0.0",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.16.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.12.12",
+    "eslint": "^9.16.0",
+    "fastify": "^4.29.1",
+    "prettier": "^3.4.2",
     "tsup": "^8.0.2",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.18.0",
     "vitest": "^1.6.0"
   },
   "peerDependencies": {
@@ -63,6 +84,9 @@
     "monitoring",
     "anomira",
     "fraud-detection",
-    "api-security"
+    "api-security",
+    "express",
+    "fastify",
+    "sdk"
   ]
 }
