@@ -1,0 +1,12 @@
+{
+  "name": "anomira-fastify-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@anomira/node-sdk": "file:../..",
+    "fastify": "^4.29.1"
+  }
+}

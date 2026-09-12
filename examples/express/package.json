@@ -1,0 +1,12 @@
+{
+  "name": "anomira-express-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@anomira/node-sdk": "file:../..",
+    "express": "^4.21.2"
+  }
+}
