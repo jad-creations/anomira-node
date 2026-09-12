@@ -2,8 +2,14 @@
 
 Drop-in API security monitoring for Node.js. Detect brute force, credential stuffing, account takeover, data scraping, path traversal, XSS, geo-velocity attacks, and more — in real time.
 
+This repository is the **open-source Node.js SDK**. The Anomira dashboard, app
+keys, and hosted ingest API are a separate product and are not in this repo.
+Contributors can run tests and examples without an Anomira account.
+
 [![npm version](https://img.shields.io/npm/v/@anomira/node-sdk)](https://www.npmjs.com/package/@anomira/node-sdk)
+[![CI](https://github.com/jad-creations/anomira-node/actions/workflows/ci.yml/badge.svg)](https://github.com/jad-creations/anomira-node/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
 
 ## Install
 
@@ -23,7 +29,9 @@ pnpm add @anomira/node-sdk
 
 ### 1. Set your environment variables
 
-Copy these into your `.env` file. Get the values from your [Anomira dashboard](https://app.anomira.io) under **Apps → Setup**.
+Copy these into your `.env` file if you use the hosted Anomira product. Get the
+values from the dashboard under **Apps → Setup**. You do not need these to
+contribute to this SDK — see [Examples](#examples).
 
 ```env
 ANOMIRA_API_KEY=ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -424,6 +432,37 @@ await Promise.race([
 
 ---
 
+## Examples
+
+This repository is the **Node.js SDK only**. The Anomira dashboard and hosted
+ingest API are not open source, so contributors cannot create API keys.
+
+The apps in [`examples/`](examples/) start a local mock ingest. You do not need
+an Anomira account:
+
+```bash
+npm install
+npm run build
+cd examples/express   # or examples/fastify
+npm install
+npm start
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and pull request
+guidelines. Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before
+participating.
+
+## Security
+
+Report vulnerabilities privately — see [SECURITY.md](SECURITY.md). Do not open a
+public issue for security reports.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
-MIT
+[MIT](LICENSE)
