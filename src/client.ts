@@ -10,6 +10,7 @@ import { scanForSsrf } from "./ssrf.js";
 import { scanRequestForJwtAttacks } from "./jwt-detect.js";
 import { detectHoneypotType, generateHoneypotResponse, generateCanaryJwt, makeAdminLoginFailed } from "./honeypot-responses.js";
 import { randomBytes } from "node:crypto";
+import { SDK_USER_AGENT } from "./version.js";
 
 interface RequestContext {
   endpoint: string;
@@ -274,7 +275,7 @@ export class AnomiraClient {
       const res = await fetch(syncUrl, {
         headers: {
           Authorization:  `Bearer ${this.config.apiKey}`,
-          "User-Agent":   `@anomira/node-sdk/0.2.2`,
+          "User-Agent": SDK_USER_AGENT,
         },
         signal: AbortSignal.timeout(5_000),
       });
@@ -296,7 +297,7 @@ export class AnomiraClient {
       const res = await fetch(syncUrl, {
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
-          "User-Agent":  `@anomira/node-sdk/0.2.2`,
+          "User-Agent": SDK_USER_AGENT,
         },
         signal: AbortSignal.timeout(5_000),
       });
@@ -324,7 +325,7 @@ export class AnomiraClient {
     const syncUrl = this.config.ingestUrl.replace(/\/v1\/events$/, "/v1/honeypots/sync");
     try {
       const res = await fetch(syncUrl, {
-        headers: { Authorization: `Bearer ${this.config.apiKey}`, "User-Agent": "@anomira/node-sdk/0.2.2" },
+        headers: { Authorization: `Bearer ${this.config.apiKey}`, "User-Agent": SDK_USER_AGENT },
         signal:  AbortSignal.timeout(5_000),
       });
       if (!res.ok) return;
@@ -340,7 +341,7 @@ export class AnomiraClient {
     const syncUrl = this.config.ingestUrl.replace(/\/v1\/events$/, "/v1/canary-tokens/sync");
     try {
       const res = await fetch(syncUrl, {
-        headers: { Authorization: `Bearer ${this.config.apiKey}`, "User-Agent": "@anomira/node-sdk/0.2.2" },
+        headers: { Authorization: `Bearer ${this.config.apiKey}`, "User-Agent": SDK_USER_AGENT },
         signal:  AbortSignal.timeout(5_000),
       });
       if (!res.ok) return;
@@ -355,7 +356,7 @@ export class AnomiraClient {
       const res = await fetch(syncUrl, {
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
-          "User-Agent":  `@anomira/node-sdk/0.1.0`,
+          "User-Agent": SDK_USER_AGENT,
         },
         signal: AbortSignal.timeout(5_000),
       });
@@ -416,7 +417,7 @@ export class AnomiraClient {
         headers: {
           Authorization:  `Bearer ${this.config.apiKey}`,
           "Content-Type": "application/json",
-          "User-Agent":   `@anomira/node-sdk/0.1.0`,
+          "User-Agent": SDK_USER_AGENT,
         },
         body:   JSON.stringify({ appId: this.config.appId, logs: batch }),
         signal: AbortSignal.timeout(8_000),
@@ -441,7 +442,7 @@ export class AnomiraClient {
         redirect: "manual",
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
-          "User-Agent":  `@anomira/node-sdk/0.1.0`,
+          "User-Agent": SDK_USER_AGENT,
         },
         signal: AbortSignal.timeout(5_000),
       });
@@ -784,7 +785,7 @@ export class AnomiraClient {
         headers: {
           Authorization:  `Bearer ${this.config.apiKey}`,
           "Content-Type": "application/json",
-          "User-Agent":   `@anomira/node-sdk/0.1.0`,
+          "User-Agent": SDK_USER_AGENT,
         },
         body: JSON.stringify({ appId: this.config.appId, endpoints }),
         signal: AbortSignal.timeout(10_000),

@@ -1,4 +1,5 @@
 import type { SdkEvent, IngestPayload } from "./types.js";
+import { SDK_USER_AGENT } from "./version.js";
 
 interface BufferOptions {
   appId:         string;
@@ -104,7 +105,7 @@ export class EventBuffer {
         headers: {
           Authorization:  `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "User-Agent":   `@anomira/node-sdk/0.2.5`,
+          "User-Agent":   SDK_USER_AGENT,
         },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(8_000),
