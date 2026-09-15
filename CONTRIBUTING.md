@@ -154,8 +154,6 @@ Use a short imperative subject, for example:
   new abstractions.
 - Public exports live in `src/index.ts`. Treat anything not exported from there
   as internal.
-- `SentinelAPI` / `SentinelConfig` are backward-compat aliases. Do not use them
-  in new code; remove them only in a major version.
 
 ## Maintainers
 

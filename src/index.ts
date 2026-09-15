@@ -27,7 +27,7 @@
 
 export { AnomiraClient as Anomira } from "./client.js";
 // Backward-compat alias — remove in next major version
-export { AnomiraClient as SentinelAPI } from "./client.js";
+export { AnomiraClient } from "./client.js";
 export { EventName }                     from "./types.js";
 export type {
   AnomiraConfig,

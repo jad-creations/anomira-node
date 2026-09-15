@@ -120,6 +120,8 @@ export class AnomiraClient {
   private blocklistTimer:       ReturnType<typeof setInterval> | null = null;
   private firewallTimer:        ReturnType<typeof setInterval> | null = null;
   private communityThreatTimer: ReturnType<typeof setInterval> | null = null;
+  private honeypotTimer:        ReturnType<typeof setInterval> | null = null;
+  private canaryTimer:          ReturnType<typeof setInterval> | null = null;
   /** True when credentials are missing — all operations become no-ops. */
   private disabled = false;
   /** In-process cache of manually blocked IPs — refreshed every 60 s. */
@@ -153,7 +155,7 @@ export class AnomiraClient {
   constructor(config: AnomiraConfig) {
     if (!config.apiKey || !config.appId) {
       const missing = [!config.apiKey && "apiKey", !config.appId && "appId"].filter(Boolean).join(", ");
-      console.warn(`[Anomira] SDK disabled — missing config: ${missing}. Set SENTINEL_API_KEY and SENTINEL_APP_ID to enable monitoring.`);
+      console.warn(`[Anomira] SDK disabled — missing config: ${missing}. Set ANOMIRA_API_KEY and ANOMIRA_APP_ID to enable monitoring.`);
       this.disabled = true;
       // Provide safe defaults so the rest of the class doesn't blow up
       this.config = {
@@ -221,13 +223,13 @@ export class AnomiraClient {
 
     // Fetch honeypot paths immediately, then refresh every 60 s.
     void this.#refreshHoneypotPaths();
-    const honeypotTimer = setInterval(() => { void this.#refreshHoneypotPaths(); }, 60_000);
-    if ((honeypotTimer as { unref?: () => void }).unref) (honeypotTimer as { unref: () => void }).unref();
+    this.honeypotTimer = setInterval(() => { void this.#refreshHoneypotPaths(); }, 60_000);
+    if (this.honeypotTimer.unref) this.honeypotTimer.unref();
 
     // Fetch canary tokens (harvested credential strings to detect in requests).
     void this.#refreshCanaryTokens();
-    const canaryTimer = setInterval(() => { void this.#refreshCanaryTokens(); }, 60_000);
-    if ((canaryTimer as { unref?: () => void }).unref) (canaryTimer as { unref: () => void }).unref();
+    this.canaryTimer = setInterval(() => { void this.#refreshCanaryTokens(); }, 60_000);
+    if (this.canaryTimer.unref) this.canaryTimer.unref();
 
     // Fetch community threat intelligence immediately, then refresh every 60 s.
     // This is the "invisible security" layer — IPs from Anomira's federated
@@ -807,6 +809,8 @@ export class AnomiraClient {
     if (this.blocklistTimer)       { clearInterval(this.blocklistTimer);       this.blocklistTimer       = null; }
     if (this.firewallTimer)        { clearInterval(this.firewallTimer);        this.firewallTimer        = null; }
     if (this.communityThreatTimer) { clearInterval(this.communityThreatTimer); this.communityThreatTimer = null; }
+    if (this.honeypotTimer)        { clearInterval(this.honeypotTimer);        this.honeypotTimer        = null; }
+    if (this.canaryTimer)          { clearInterval(this.canaryTimer);          this.canaryTimer          = null; }
     if (this.logFlushTimer)        { clearInterval(this.logFlushTimer);        this.logFlushTimer        = null; }
     await Promise.all([this.buffer.flush(), this.#flushLogs()]);
   }
