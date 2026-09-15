@@ -8,7 +8,7 @@ import { detectAgent } from "./agent-detection.js";
 import { computeBrowserFingerprint, extractHttp2Settings, extractUpstreamTls } from "./behavioral-fingerprint.js";
 import { scanForSsrf } from "./ssrf.js";
 import { scanRequestForJwtAttacks } from "./jwt-detect.js";
-import { detectHoneypotType, generateHoneypotResponse, generateCanaryJwt, makeAdminLoginFailed } from "./honeypot-responses.js";
+import { detectHoneypotType, generateHoneypotResponse, makeAdminLoginFailed } from "./honeypot-responses.js";
 import { randomBytes } from "node:crypto";
 import { SDK_USER_AGENT } from "./version.js";
 import { hasPathTraversal } from "./path-traversal.js";
@@ -1207,10 +1207,8 @@ function createExpressMiddleware(client: AnomiraClient) {
 
       // ── POST to admin portal: capture credential attempt ───────────────────
       // When an attacker fills in the fake login form and submits, we capture
-      // what credentials they tried (username + password hint) as threat intel.
-      // We store the username in full (useful to know which accounts are targeted)
-      // and the password length + first 2 chars so we can identify patterns
-      // (e.g., "admin", "password123", empty) without storing the full credential.
+      // what credentials they tried as threat intel. Username is stored in full
+      // (useful to know which accounts are targeted); password is length-only.
       if (method === "POST" && honeypotType === "admin_portal") {
         const body_    = req["body"] as Record<string, unknown> | undefined;
         const username = String(
@@ -1221,9 +1219,9 @@ function createExpressMiddleware(client: AnomiraClient) {
         );
 
         if (username || password) {
-          // Password hint: first 2 chars + "***" + length — enough to spot patterns
+          // Length-only hint — avoid storing any password material
           const passwordHint = password.length > 0
-            ? `${password.slice(0, 2)}***[${password.length}]`
+            ? `[len=${password.length}]`
             : "(empty)";
 
           client.track("http.honeypot.credential_attempt", {

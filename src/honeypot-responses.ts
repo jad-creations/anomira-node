@@ -34,6 +34,16 @@
 
 import { randomBytes, createHmac } from "node:crypto";
 
+/** Escape a value for safe use inside an HTML attribute. */
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type HoneypotType =
@@ -568,7 +578,7 @@ function makeAdminPortal(canaryToken: string): HoneypotResponse {
     <h1>Administration Panel</h1>
     <p class="subtitle">Sign in to continue</p>
     <form method="POST" action="./login" autocomplete="off">
-      <input type="hidden" name="_token" value="${canaryToken}" />
+      <input type="hidden" name="_token" value="${escapeHtmlAttr(canaryToken)}" />
       <div>
         <label for="username">Username</label>
         <input id="username" name="username" type="text" placeholder="admin" autocomplete="off" />
