@@ -18,7 +18,7 @@ import fs   from "node:fs";
 import path from "node:path";
 import { lintSource }            from "@secretlint/core";
 import { creator as presetCreator } from "@secretlint/secretlint-rule-preset-recommend";
-import { scanForLeaks }          from "./sensitive.js";
+import { scanForLeaks, redactMessage } from "./sensitive.js";
 
 // ─── ANSI colours ────────────────────────────────────────────────────────────
 
@@ -95,7 +95,9 @@ function findHighEntropySecrets(line: string): { value: string; entropy: number 
   return null;
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+function redactExcerpt(line: string): string {
+  return redactMessage(line.trim()).slice(0, 120);
+}
 
 interface Violation {
   file:    string;
@@ -167,7 +169,7 @@ async function scanFile(filePath: string, strict: boolean): Promise<Violation[]>
         col:     msg.loc?.start?.column,
         type:    msg.ruleId,
         label:   msg.message,
-        excerpt: lineText.trim().slice(0, 120),
+        excerpt: redactExcerpt(lineText),
         source:  "secretlint",
       });
     }
@@ -189,7 +191,7 @@ async function scanFile(filePath: string, strict: boolean): Promise<Violation[]>
           line:    i + 1,
           type:    match.type,
           label:   match.label,
-          excerpt: line.trim().slice(0, 120),
+          excerpt: redactExcerpt(line),
           source:  "custom",
         });
       }
@@ -208,7 +210,7 @@ async function scanFile(filePath: string, strict: boolean): Promise<Violation[]>
             line:    i + 1,
             type:    "high_entropy",
             label:   `High-entropy secret (entropy: ${hit.entropy.toFixed(2)})`,
-            excerpt: lines[i]!.trim().slice(0, 120),
+            excerpt: redactExcerpt(lines[i]!),
             source:  "entropy",
           });
         }
