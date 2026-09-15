@@ -115,7 +115,10 @@ export async function startMockIngest(options = {}) {
       return;
     }
 
-    if (method === "POST" && (route === "/v1/logs" || route === "/v1/declare-endpoints" || route === "/v1/blocked-hit")) {
+    if (
+      method === "POST" &&
+      (route === "/v1/logs" || route === "/v1/declare-endpoints" || route === "/v1/blocked-hit")
+    ) {
       res.writeHead(202, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
       return;

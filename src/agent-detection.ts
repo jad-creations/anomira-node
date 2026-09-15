@@ -19,27 +19,27 @@
  */
 
 export type AgentType =
-  | "openai"       // GPTBot, ChatGPT-User, OAI-SearchBot, ChatGPT Agent
-  | "anthropic"    // ClaudeBot, Claude-User, Claude-SearchBot
-  | "perplexity"   // PerplexityBot, Perplexity-User
-  | "mcp_client"   // Generic MCP client (no provider-specific UA)
+  | "openai" // GPTBot, ChatGPT-User, OAI-SearchBot, ChatGPT Agent
+  | "anthropic" // ClaudeBot, Claude-User, Claude-SearchBot
+  | "perplexity" // PerplexityBot, Perplexity-User
+  | "mcp_client" // Generic MCP client (no provider-specific UA)
   | "rfc9421_agent" // Signed agent via RFC 9421 HTTP Message Signatures
   | "unknown_agent"; // Has agent signals but no provider identified
 
 export type AgentConfidence = "high" | "medium";
 
 export interface AgentDetectionResult {
-  isAgent:    boolean;
+  isAgent: boolean;
   confidence: AgentConfidence;
-  agentType:  AgentType | null;
+  agentType: AgentType | null;
   /** The matched UA token, e.g. "GPTBot/1.3" or "ClaudeBot/1.0" */
-  agentName:  string | null;
+  agentName: string | null;
   /** Mcp-Session-Id header value when MCP protocol is confirmed */
-  sessionId:  string | null;
+  sessionId: string | null;
   /** True when Mcp-Session-Id or MCP Accept header is confirmed present */
-  isMcp:      boolean;
+  isMcp: boolean;
   /** Which specific signals fired — for observability and tuning */
-  signals:    string[];
+  signals: string[];
 }
 
 // ─── Confirmed user-agent substrings (official documentation only) ─────────────
@@ -49,27 +49,27 @@ export interface AgentDetectionResult {
 // Do NOT add patterns based on community aggregators or unverified reports.
 const CONFIRMED_UA_PATTERNS: [RegExp, AgentType, string][] = [
   // OpenAI — https://developers.openai.com/api/docs/bots
-  [/GPTBot\//i,         "openai",     "GPTBot"],
-  [/ChatGPT-User\//i,   "openai",     "ChatGPT-User"],
-  [/OAI-SearchBot\//i,  "openai",     "OAI-SearchBot"],
-  [/OAI-AdsBot\//i,     "openai",     "OAI-AdsBot"],
+  [/GPTBot\//i, "openai", "GPTBot"],
+  [/ChatGPT-User\//i, "openai", "ChatGPT-User"],
+  [/OAI-SearchBot\//i, "openai", "OAI-SearchBot"],
+  [/OAI-AdsBot\//i, "openai", "OAI-AdsBot"],
 
   // Anthropic — https://support.claude.com/en/articles/8896518
-  [/ClaudeBot\//i,        "anthropic",  "ClaudeBot"],
-  [/Claude-User\//i,      "anthropic",  "Claude-User"],
-  [/Claude-SearchBot\//i, "anthropic",  "Claude-SearchBot"],
+  [/ClaudeBot\//i, "anthropic", "ClaudeBot"],
+  [/Claude-User\//i, "anthropic", "Claude-User"],
+  [/Claude-SearchBot\//i, "anthropic", "Claude-SearchBot"],
 
   // Perplexity — https://docs.perplexity.ai/guides/bots
-  [/PerplexityBot\//i,    "perplexity", "PerplexityBot"],
-  [/Perplexity-User\//i,  "perplexity", "Perplexity-User"],
+  [/PerplexityBot\//i, "perplexity", "PerplexityBot"],
+  [/Perplexity-User\//i, "perplexity", "Perplexity-User"],
 ];
 
 // ─── MCP Protocol headers (confirmed from MCP spec 2025-03-26) ─────────────────
 //
 // Node.js normalises all incoming HTTP header names to lowercase, so we
 // match the lowercase form here.
-const MCP_SESSION_HEADER   = "mcp-session-id";   // Mcp-Session-Id (normalised)
-const RFC9421_SIG_HEADER   = "signature-agent";   // Signature-Agent (RFC 9421)
+const MCP_SESSION_HEADER = "mcp-session-id"; // Mcp-Session-Id (normalised)
+const RFC9421_SIG_HEADER = "signature-agent"; // Signature-Agent (RFC 9421)
 
 // The MCP spec mandates clients send EXACTLY this Accept header value.
 // Source: spec + confirmed via multiple bug reports about HTTP 406 errors
@@ -87,10 +87,10 @@ export function detectAgent(
   headers: Record<string, string | string[] | undefined>,
 ): AgentDetectionResult {
   const signals: string[] = [];
-  let agentType:  AgentType | null  = null;
-  let agentName:  string    | null  = null;
-  let sessionId:  string    | null  = null;
-  let isMcp                         = false;
+  let agentType: AgentType | null = null;
+  let agentName: string | null = null;
+  let sessionId: string | null = null;
+  let isMcp = false;
   let confidence: AgentConfidence | null = null;
 
   // ── 1. RFC 9421 Signature-Agent (HIGH confidence) ──────────────────────────
@@ -100,16 +100,16 @@ export function detectAgent(
   if (sigAgent) {
     signals.push("rfc9421_signature_agent");
     confidence = "high";
-    agentType  = sigAgent.includes("chatgpt.com") ? "openai" : "rfc9421_agent";
-    agentName  = `rfc9421:${sigAgent.slice(0, 60)}`;
+    agentType = sigAgent.includes("chatgpt.com") ? "openai" : "rfc9421_agent";
+    agentName = `rfc9421:${sigAgent.slice(0, 60)}`;
   }
 
   // ── 2. MCP Session ID header (HIGH confidence) ─────────────────────────────
   const mcpSession = headerStr(headers[MCP_SESSION_HEADER]);
   if (mcpSession) {
     signals.push("mcp_session_id");
-    isMcp      = true;
-    sessionId  = mcpSession;
+    isMcp = true;
+    sessionId = mcpSession;
     confidence = "high";
     if (!agentType) agentType = "mcp_client";
   }
@@ -122,7 +122,7 @@ export function detectAgent(
     signals.push("mcp_accept_header");
     isMcp = true;
     if (!confidence) confidence = "high";
-    if (!agentType)  agentType  = "mcp_client";
+    if (!agentType) agentType = "mcp_client";
   }
 
   // ── 4. Known AI agent User-Agent strings (HIGH confidence) ─────────────────
@@ -134,9 +134,9 @@ export function detectAgent(
       confidence = "high";
       // Extract the full token with version e.g. "GPTBot/1.3"
       const tokenStart = ua.indexOf(match[0]);
-      const tokenEnd   = ua.indexOf(" ", tokenStart);
-      agentName  = tokenEnd > -1 ? ua.slice(tokenStart, tokenEnd) : match[0];
-      agentType  = type;
+      const tokenEnd = ua.indexOf(" ", tokenStart);
+      agentName = tokenEnd > -1 ? ua.slice(tokenStart, tokenEnd) : match[0];
+      agentType = type;
       break; // First match wins — patterns are mutually exclusive
     }
   }
@@ -150,17 +150,17 @@ export function detectAgent(
   if (!agentType && /^python-httpx\//i.test(ua) && isMcp) {
     signals.push("ua_python_httpx_with_mcp");
     confidence = "medium";
-    agentType  = "mcp_client";
-    agentName  = ua.split(" ")[0] ?? "python-httpx";
+    agentType = "mcp_client";
+    agentName = ua.split(" ")[0] ?? "python-httpx";
   }
 
   const isAgent = confidence !== null;
 
   return {
     isAgent,
-    confidence:  confidence ?? "medium",
-    agentType:   isAgent ? (agentType ?? "unknown_agent") : null,
-    agentName:   isAgent ? agentName : null,
+    confidence: confidence ?? "medium",
+    agentType: isAgent ? (agentType ?? "unknown_agent") : null,
+    agentName: isAgent ? agentName : null,
     sessionId,
     isMcp,
     signals,

@@ -2,13 +2,13 @@ import type { SdkEvent, IngestPayload } from "./types.js";
 import { SDK_USER_AGENT } from "./version.js";
 
 interface BufferOptions {
-  appId:         string;
-  apiKey:        string;
-  ingestUrl:     string;
-  maxBatchSize:  number;
+  appId: string;
+  apiKey: string;
+  ingestUrl: string;
+  maxBatchSize: number;
   flushIntervalMs: number;
-  maxRetries:    number;
-  debug:         boolean;
+  maxRetries: number;
+  debug: boolean;
 }
 
 /**
@@ -23,8 +23,8 @@ interface BufferOptions {
  * After maxRetries failures: events are dropped with a warning (never crash).
  */
 export class EventBuffer {
-  private queue:   SdkEvent[] = [];
-  private timer:   ReturnType<typeof setInterval> | null = null;
+  private queue: SdkEvent[] = [];
+  private timer: ReturnType<typeof setInterval> | null = null;
   private flushing = false;
   private readonly opts: BufferOptions;
 
@@ -65,7 +65,10 @@ export class EventBuffer {
 
   /** Call on graceful shutdown to flush remaining events synchronously. */
   async shutdown(): Promise<void> {
-    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
     await this.flush();
     this.log("[buffer] shutdown complete");
   }
@@ -87,9 +90,11 @@ export class EventBuffer {
     const current = process.getMaxListeners();
     process.setMaxListeners(current + 3);
 
-    const handler = () => { void this.shutdown(); };
-    process.once("SIGTERM",    handler);
-    process.once("SIGINT",     handler);
+    const handler = () => {
+      void this.shutdown();
+    };
+    process.once("SIGTERM", handler);
+    process.once("SIGINT", handler);
     process.once("beforeExit", handler);
   }
 
@@ -100,12 +105,12 @@ export class EventBuffer {
 
     try {
       const res = await fetch(ingestUrl, {
-        method:   "POST",
+        method: "POST",
         redirect: "manual",
         headers: {
-          Authorization:  `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "User-Agent":   SDK_USER_AGENT,
+          "User-Agent": SDK_USER_AGENT,
         },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(8_000),
@@ -117,7 +122,9 @@ export class EventBuffer {
       }
 
       if (res.status >= 300 && res.status < 400) {
-        this.warn(`[buffer] ❌ Wrong ingest URL — got redirect to ${res.headers.get("location")}. Check SENTINEL_INGEST_URL.`);
+        this.warn(
+          `[buffer] ❌ Wrong ingest URL — got redirect to ${res.headers.get("location")}. Check SENTINEL_INGEST_URL.`,
+        );
         return;
       }
 

@@ -14,9 +14,9 @@
  *   1 — one or more violations found (CI/CD compatible)
  */
 
-import fs   from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
-import { lintSource }            from "@secretlint/core";
+import { lintSource } from "@secretlint/core";
 import { creator as presetCreator } from "@secretlint/secretlint-rule-preset-recommend";
 import { scanForLeaks, redactMessage } from "./sensitive.js";
 
@@ -24,40 +24,92 @@ import { scanForLeaks, redactMessage } from "./sensitive.js";
 
 const isTTY = process.stdout.isTTY;
 const c = {
-  reset:  isTTY ? "\x1b[0m"  : "",
-  bold:   isTTY ? "\x1b[1m"  : "",
-  dim:    isTTY ? "\x1b[2m"  : "",
-  red:    isTTY ? "\x1b[31m" : "",
+  reset: isTTY ? "\x1b[0m" : "",
+  bold: isTTY ? "\x1b[1m" : "",
+  dim: isTTY ? "\x1b[2m" : "",
+  red: isTTY ? "\x1b[31m" : "",
   yellow: isTTY ? "\x1b[33m" : "",
-  green:  isTTY ? "\x1b[32m" : "",
-  cyan:   isTTY ? "\x1b[36m" : "",
-  grey:   isTTY ? "\x1b[90m" : "",
+  green: isTTY ? "\x1b[32m" : "",
+  cyan: isTTY ? "\x1b[36m" : "",
+  grey: isTTY ? "\x1b[90m" : "",
 };
 
 // ─── File scanning config ────────────────────────────────────────────────────
 
 const SCAN_EXTS = new Set([
-  ".ts", ".js", ".mjs", ".cjs", ".tsx", ".jsx",
-  ".py", ".rb", ".go", ".java", ".php", ".cs", ".rs",
-  ".env", ".env.local", ".env.example", ".env.test", ".env.production",
-  ".json", ".yaml", ".yml", ".toml", ".ini", ".conf", ".config",
-  ".sh", ".bash", ".zsh", ".fish",
-  ".tf", ".tfvars",   // Terraform
-  ".pem", ".key",     // certificate/key files
+  ".ts",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".tsx",
+  ".jsx",
+  ".py",
+  ".rb",
+  ".go",
+  ".java",
+  ".php",
+  ".cs",
+  ".rs",
+  ".env",
+  ".env.local",
+  ".env.example",
+  ".env.test",
+  ".env.production",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".toml",
+  ".ini",
+  ".conf",
+  ".config",
+  ".sh",
+  ".bash",
+  ".zsh",
+  ".fish",
+  ".tf",
+  ".tfvars", // Terraform
+  ".pem",
+  ".key", // certificate/key files
 ]);
 
 const SKIP_DIRS = new Set([
-  "node_modules", ".git", ".next", "dist", "build", "out",
-  "coverage", "__pycache__", ".venv", "venv", ".env",
-  ".turbo", ".cache", "tmp", "temp",
+  "node_modules",
+  ".git",
+  ".next",
+  "dist",
+  "build",
+  "out",
+  "coverage",
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".env",
+  ".turbo",
+  ".cache",
+  "tmp",
+  "temp",
   // Test directories — skipped by default, use --include-tests to scan them
-  "tests", "test", "__tests__", "spec", "__spec__", "fixtures", "__fixtures__", "mocks", "__mocks__",
+  "tests",
+  "test",
+  "__tests__",
+  "spec",
+  "__spec__",
+  "fixtures",
+  "__fixtures__",
+  "mocks",
+  "__mocks__",
 ]);
 
 // Test file suffixes — skipped by default
 const TEST_FILE_PATTERNS = [
-  ".test.js", ".test.ts", ".test.jsx", ".test.tsx",
-  ".spec.js", ".spec.ts", ".spec.jsx", ".spec.tsx",
+  ".test.js",
+  ".test.ts",
+  ".test.jsx",
+  ".test.tsx",
+  ".spec.js",
+  ".spec.ts",
+  ".spec.jsx",
+  ".spec.tsx",
 ];
 
 // ─── Entropy analysis ─────────────────────────────────────────────────────────
@@ -78,18 +130,18 @@ function findHighEntropySecrets(line: string): { value: string; entropy: number 
   // Match any variable name containing a secret-like keyword (camelCase, snake_case, etc.)
   // e.g. internalToken, webhookSecret, API_KEY, authCredential
   const assignmentMatch = line.match(
-    /\b\w*(?:key|token|secret|password|passwd|pwd|auth|credential|api)\w*\s*[:=]\s*["']?([A-Za-z0-9+/=_\-.]{20,})["']?/i
+    /\b\w*(?:key|token|secret|password|passwd|pwd|auth|credential|api)\w*\s*[:=]\s*["']?([A-Za-z0-9+/=_\-.]{20,})["']?/i,
   );
   if (!assignmentMatch) return null;
 
-  const value   = assignmentMatch[1]!;
+  const value = assignmentMatch[1]!;
   const entropy = shannonEntropy(value);
 
   // Thresholds tuned to reduce false positives on common values like UUIDs
   // Base64-like: entropy > 4.5, hex-like: entropy > 3.5
   const isBase64Like = /^[A-Za-z0-9+/=]{20,}$/.test(value);
-  const isHexLike    = /^[0-9a-fA-F]{20,}$/.test(value);
-  const threshold    = isHexLike ? 3.5 : isBase64Like ? 4.5 : 4.0;
+  const isHexLike = /^[0-9a-fA-F]{20,}$/.test(value);
+  const threshold = isHexLike ? 3.5 : isBase64Like ? 4.5 : 4.0;
 
   if (entropy >= threshold) return { value, entropy };
   return null;
@@ -100,13 +152,13 @@ function redactExcerpt(line: string): string {
 }
 
 interface Violation {
-  file:    string;
-  line:    number;
-  col?:    number;
-  type:    string;
-  label:   string;
+  file: string;
+  line: number;
+  col?: number;
+  type: string;
+  label: string;
   excerpt: string;
-  source:  "secretlint" | "custom" | "entropy";
+  source: "secretlint" | "custom" | "entropy";
 }
 
 // ─── secretlint config ───────────────────────────────────────────────────────
@@ -114,8 +166,8 @@ interface Violation {
 const SECRETLINT_CONFIG = {
   rules: [
     {
-      id:      "@secretlint/secretlint-rule-preset-recommend",
-      rule:    presetCreator,
+      id: "@secretlint/secretlint-rule-preset-recommend",
+      rule: presetCreator,
       options: {},
     },
   ],
@@ -130,7 +182,7 @@ function isTestFile(filePath: string): boolean {
 
 function shouldScan(filePath: string, includeTests: boolean): boolean {
   if (!includeTests && isTestFile(filePath)) return false;
-  const ext  = path.extname(filePath);
+  const ext = path.extname(filePath);
   const base = path.basename(filePath);
   if (base.startsWith(".env")) return true;
   if (ext === ".pem" || ext === ".key") return true;
@@ -164,35 +216,35 @@ async function scanFile(filePath: string, strict: boolean): Promise<Violation[]>
       const lineNum = msg.loc?.start?.line ?? 1;
       const lineText = content.split("\n")[lineNum - 1] ?? "";
       violations.push({
-        file:    filePath,
-        line:    lineNum,
-        col:     msg.loc?.start?.column,
-        type:    msg.ruleId,
-        label:   msg.message,
+        file: filePath,
+        line: lineNum,
+        col: msg.loc?.start?.column,
+        type: msg.ruleId,
+        label: msg.message,
         excerpt: redactExcerpt(lineText),
-        source:  "secretlint",
+        source: "secretlint",
       });
     }
-  } catch { /* secretlint may not support all file types */ }
+  } catch {
+    /* secretlint may not support all file types */
+  }
 
   // ── Layer 2: custom patterns (Nigerian PII, card PANs, DB strings) ────────
   const lines = content.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    const line    = lines[i]!;
+    const line = lines[i]!;
     const matches = scanForLeaks(line);
     for (const match of matches) {
       // Avoid duplicating what secretlint already caught on this line
-      const alreadyCaught = violations.some(
-        (v) => v.line === i + 1 && v.source === "secretlint"
-      );
+      const alreadyCaught = violations.some((v) => v.line === i + 1 && v.source === "secretlint");
       if (!alreadyCaught) {
         violations.push({
-          file:    filePath,
-          line:    i + 1,
-          type:    match.type,
-          label:   match.label,
+          file: filePath,
+          line: i + 1,
+          type: match.type,
+          label: match.label,
           excerpt: redactExcerpt(line),
-          source:  "custom",
+          source: "custom",
         });
       }
     }
@@ -206,12 +258,12 @@ async function scanFile(filePath: string, strict: boolean): Promise<Violation[]>
         const alreadyCaught = violations.some((v) => v.line === i + 1);
         if (!alreadyCaught) {
           violations.push({
-            file:    filePath,
-            line:    i + 1,
-            type:    "high_entropy",
-            label:   `High-entropy secret (entropy: ${hit.entropy.toFixed(2)})`,
+            file: filePath,
+            line: i + 1,
+            type: "high_entropy",
+            label: `High-entropy secret (entropy: ${hit.entropy.toFixed(2)})`,
             excerpt: redactExcerpt(lines[i]!),
-            source:  "entropy",
+            source: "entropy",
           });
         }
       }
@@ -237,16 +289,17 @@ function* walkDir(dir: string, includeTests: boolean): Generator<string> {
 // ─── CLI entry ───────────────────────────────────────────────────────────────
 
 async function main() {
-  const args       = process.argv.slice(2);
+  const args = process.argv.slice(2);
   const positional = args.filter((a) => !a.startsWith("--") && a !== "scan");
-  const scanPath   = positional[0] ?? ".";
-  const quiet        = args.includes("--quiet") || args.includes("-q");
-  const jsonOut      = args.includes("--json");
-  const strict       = args.includes("--strict");
+  const scanPath = positional[0] ?? ".";
+  const quiet = args.includes("--quiet") || args.includes("-q");
+  const jsonOut = args.includes("--json");
+  const strict = args.includes("--strict");
   const includeTests = args.includes("--include-tests");
 
   if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
-    console.log(`
+    console.log(
+      `
 ${c.bold}Anomira Secret Scanner${c.reset}
 
 Usage: npx @anomira/node-sdk scan [path] [options]
@@ -271,7 +324,8 @@ Examples:
   anomira scan ./backend --quiet
 
 Exit codes: 0 = clean  1 = violations found
-`.trim());
+`.trim(),
+    );
     process.exit(0);
   }
 
@@ -284,7 +338,9 @@ Exit codes: 0 = clean  1 = violations found
   if (!quiet && !jsonOut) {
     console.log(`\n${c.bold}${c.cyan}Anomira Secret Scanner${c.reset}`);
     console.log(`${c.grey}Target:  ${target}${c.reset}`);
-    console.log(`${c.grey}Layers:  secretlint + custom patterns${strict ? " + entropy" : ""}${c.reset}\n`);
+    console.log(
+      `${c.grey}Layers:  secretlint + custom patterns${strict ? " + entropy" : ""}${c.reset}\n`,
+    );
   }
 
   const files = fs.statSync(target).isDirectory() ? [...walkDir(target, includeTests)] : [target];
@@ -300,10 +356,15 @@ Exit codes: 0 = clean  1 = violations found
       const rel = path.relative(process.cwd(), file);
       console.log(`${c.bold}${c.red}FAIL${c.reset} ${rel}`);
       for (const v of violations) {
-        const sourceTag = v.source === "secretlint" ? `${c.cyan}[secretlint]${c.reset}` :
-                          v.source === "entropy"    ? `${c.yellow}[entropy]${c.reset}` :
-                                                      `${c.grey}[custom]${c.reset}`;
-        console.log(`  ${c.yellow}Line ${v.line}${c.reset} ${sourceTag} ${c.bold}${v.label}${c.reset}`);
+        const sourceTag =
+          v.source === "secretlint"
+            ? `${c.cyan}[secretlint]${c.reset}`
+            : v.source === "entropy"
+              ? `${c.yellow}[entropy]${c.reset}`
+              : `${c.grey}[custom]${c.reset}`;
+        console.log(
+          `  ${c.yellow}Line ${v.line}${c.reset} ${sourceTag} ${c.bold}${v.label}${c.reset}`,
+        );
         console.log(`  ${c.grey}${v.excerpt}${c.reset}`);
       }
       console.log();
@@ -311,25 +372,33 @@ Exit codes: 0 = clean  1 = violations found
   }
 
   if (jsonOut) {
-    console.log(JSON.stringify({
-      files:      fileCount,
-      violations: allViolations.length,
-      strict,
-      results:    allViolations.map((v) => ({
-        file:    path.relative(process.cwd(), v.file),
-        line:    v.line,
-        type:    v.type,
-        label:   v.label,
-        source:  v.source,
-        excerpt: v.excerpt,
-      })),
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          files: fileCount,
+          violations: allViolations.length,
+          strict,
+          results: allViolations.map((v) => ({
+            file: path.relative(process.cwd(), v.file),
+            line: v.line,
+            type: v.type,
+            label: v.label,
+            source: v.source,
+            excerpt: v.excerpt,
+          })),
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(allViolations.length > 0 ? 1 : 0);
   }
 
   if (allViolations.length === 0) {
     if (!quiet) {
-      console.log(`${c.green}${c.bold}✓ No secrets found${c.reset} ${c.grey}(${fileCount} files scanned)${c.reset}\n`);
+      console.log(
+        `${c.green}${c.bold}✓ No secrets found${c.reset} ${c.grey}(${fileCount} files scanned)${c.reset}\n`,
+      );
     }
     process.exit(0);
   }
@@ -342,9 +411,11 @@ Exit codes: 0 = clean  1 = violations found
   if (!quiet) {
     console.log(
       `${c.red}${c.bold}✗ ${allViolations.length} secret(s) found${c.reset} ` +
-      `${c.grey}in ${fileCount} files — ` +
-      Object.entries(bySource).map(([s, n]) => `${s}: ${n}`).join(", ") +
-      `${c.reset}\n`
+        `${c.grey}in ${fileCount} files — ` +
+        Object.entries(bySource)
+          .map(([s, n]) => `${s}: ${n}`)
+          .join(", ") +
+        `${c.reset}\n`,
     );
   }
   process.exit(1);

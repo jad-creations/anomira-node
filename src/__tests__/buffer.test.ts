@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventBuffer } from "../buffer.js";
 
 const OPTS = {
-  appId:          "app_test",
-  apiKey:         "sk_test",
-  ingestUrl:      "https://ingest.example.com/v1/events",
-  maxBatchSize:   5,
-  flushIntervalMs:60_000,   // long — we flush manually in tests
-  maxRetries:     1,
-  debug:          false,
+  appId: "app_test",
+  apiKey: "sk_test",
+  ingestUrl: "https://ingest.example.com/v1/events",
+  maxBatchSize: 5,
+  flushIntervalMs: 60_000, // long — we flush manually in tests
+  maxRetries: 1,
+  debug: false,
 };
 
 describe("EventBuffer", () => {
@@ -36,7 +36,8 @@ describe("EventBuffer", () => {
 
     expect(fetchSpy).toHaveBeenCalledOnce();
     const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      appId: string; events: unknown[];
+      appId: string;
+      events: unknown[];
     };
     expect(body.appId).toBe("app_test");
     expect(body.events).toHaveLength(5);

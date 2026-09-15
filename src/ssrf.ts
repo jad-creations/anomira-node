@@ -39,33 +39,40 @@
 // scanning creates too many false positives (e.g., a "description" field that
 // happens to contain a URL is not an SSRF attempt).
 
-const URL_PARAM_PATTERN = /^(url|uri|path|link|next|target|src|href|redirect|redirecturl|returnurl|successurl|callback|fetch|image|imageurl|avatar|photo|webhook|endpoint|to|host|domain|site|page|file|load|open|download|import|include|embed|source|proxy|destination|dest|resource|location|goto|return|referer|origin|remote|ping|pull)$/i;
+const URL_PARAM_PATTERN =
+  /^(url|uri|path|link|next|target|src|href|redirect|redirecturl|returnurl|successurl|callback|fetch|image|imageurl|avatar|photo|webhook|endpoint|to|host|domain|site|page|file|load|open|download|import|include|embed|source|proxy|destination|dest|resource|location|goto|return|referer|origin|remote|ping|pull)$/i;
 
 // ─── Dangerous non-HTTP schemes ───────────────────────────────────────────────
 
 const DANGEROUS_SCHEMES = new Set([
-  "file", "gopher", "dict", "ftp", "sftp", "ldap", "ldaps",
-  "netdoc", "jar", "mailto", "telnet", "tftp", "finger",
+  "file",
+  "gopher",
+  "dict",
+  "ftp",
+  "sftp",
+  "ldap",
+  "ldaps",
+  "netdoc",
+  "jar",
+  "mailto",
+  "telnet",
+  "tftp",
+  "finger",
 ]);
 
 // ─── IP normalization ─────────────────────────────────────────────────────────
 
 /** Convert a 32-bit integer to dotted-decimal IP string. */
 function intToIp(n: number): string {
-  return [
-    (n >>> 24) & 0xFF,
-    (n >>> 16) & 0xFF,
-    (n >>> 8)  & 0xFF,
-    n          & 0xFF,
-  ].join(".");
+  return [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff].join(".");
 }
 
 /** Parse a single IP octet — supports decimal, hex (0x..), octal (0..) */
 function parseOctet(s: string): number | null {
   s = s.trim();
   if (/^0x[0-9a-fA-F]+$/.test(s)) return parseInt(s, 16);
-  if (/^0[0-9]+$/.test(s))         return parseInt(s, 8);   // leading zero = octal
-  if (/^[0-9]+$/.test(s))          return parseInt(s, 10);
+  if (/^0[0-9]+$/.test(s)) return parseInt(s, 8); // leading zero = octal
+  if (/^[0-9]+$/.test(s)) return parseInt(s, 10);
   return null;
 }
 
@@ -86,8 +93,9 @@ function normalizeIp(hostname: string): string | null {
   const h = hostname.trim().toLowerCase();
 
   // IPv6 mapped to IPv4: ::ffff:xxxx:xxxx or ::ffff:a.b.c.d
-  const v6mapped = h.match(/^(?:::ffff:)([0-9a-f]{1,4}:[0-9a-f]{1,4})$/i)
-                ?? h.match(/^(?:0{0,4}:){5}ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  const v6mapped =
+    h.match(/^(?:::ffff:)([0-9a-f]{1,4}:[0-9a-f]{1,4})$/i) ??
+    h.match(/^(?:0{0,4}:){5}ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (v6mapped?.[1]) {
     // ::ffff:a9fe:a9fe style — two hex groups
     const parts = v6mapped[1].split(":");
@@ -106,7 +114,7 @@ function normalizeIp(hostname: string): string | null {
   // 32-bit hex integer: 0xa9fea9fe
   if (/^0x[0-9a-f]+$/i.test(h)) {
     const n = parseInt(h, 16);
-    if (!isNaN(n) && n >= 0 && n <= 0xFFFFFFFF) return intToIp(n);
+    if (!isNaN(n) && n >= 0 && n <= 0xffffffff) return intToIp(n);
   }
 
   // 32-bit decimal integer: 2852039166
@@ -141,22 +149,26 @@ function ipToInt(ip: string): number {
   return ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0;
 }
 
-interface IpRange { start: number; end: number; label: string }
+interface IpRange {
+  start: number;
+  end: number;
+  label: string;
+}
 
 const PRIVATE_RANGES: IpRange[] = [
-  { start: ipToInt("0.0.0.0"),       end: ipToInt("0.255.255.255"),   label: "unspecified" },
-  { start: ipToInt("10.0.0.0"),      end: ipToInt("10.255.255.255"),  label: "private-10" },
-  { start: ipToInt("100.64.0.0"),    end: ipToInt("100.127.255.255"), label: "carrier-nat" },
-  { start: ipToInt("127.0.0.0"),     end: ipToInt("127.255.255.255"), label: "loopback" },
-  { start: ipToInt("169.254.0.0"),   end: ipToInt("169.254.255.255"), label: "link-local" },   // AWS/GCP metadata lives here
-  { start: ipToInt("172.16.0.0"),    end: ipToInt("172.31.255.255"),  label: "private-172" },
-  { start: ipToInt("192.0.0.0"),     end: ipToInt("192.0.0.255"),     label: "iana-special" }, // Oracle Cloud metadata
-  { start: ipToInt("192.168.0.0"),   end: ipToInt("192.168.255.255"), label: "private-192" },
-  { start: ipToInt("198.18.0.0"),    end: ipToInt("198.19.255.255"),  label: "benchmark" },
-  { start: ipToInt("240.0.0.0"),     end: ipToInt("255.255.255.255"), label: "reserved" },
+  { start: ipToInt("0.0.0.0"), end: ipToInt("0.255.255.255"), label: "unspecified" },
+  { start: ipToInt("10.0.0.0"), end: ipToInt("10.255.255.255"), label: "private-10" },
+  { start: ipToInt("100.64.0.0"), end: ipToInt("100.127.255.255"), label: "carrier-nat" },
+  { start: ipToInt("127.0.0.0"), end: ipToInt("127.255.255.255"), label: "loopback" },
+  { start: ipToInt("169.254.0.0"), end: ipToInt("169.254.255.255"), label: "link-local" }, // AWS/GCP metadata lives here
+  { start: ipToInt("172.16.0.0"), end: ipToInt("172.31.255.255"), label: "private-172" },
+  { start: ipToInt("192.0.0.0"), end: ipToInt("192.0.0.255"), label: "iana-special" }, // Oracle Cloud metadata
+  { start: ipToInt("192.168.0.0"), end: ipToInt("192.168.255.255"), label: "private-192" },
+  { start: ipToInt("198.18.0.0"), end: ipToInt("198.19.255.255"), label: "benchmark" },
+  { start: ipToInt("240.0.0.0"), end: ipToInt("255.255.255.255"), label: "reserved" },
   // Specific cloud metadata endpoints not covered by ranges above
   { start: ipToInt("100.100.100.200"), end: ipToInt("100.100.100.200"), label: "alibaba-metadata" },
-  { start: ipToInt("168.63.129.16"),   end: ipToInt("168.63.129.16"),   label: "azure-metadata" },
+  { start: ipToInt("168.63.129.16"), end: ipToInt("168.63.129.16"), label: "azure-metadata" },
 ];
 
 function isPrivateIp(ip: string): { private: boolean; label: string } {
@@ -170,19 +182,22 @@ function isPrivateIp(ip: string): { private: boolean; label: string } {
 // ─── Hostname aliases that always mean internal ───────────────────────────────
 
 const INTERNAL_HOSTNAMES = new Set([
-  "localhost", "local", "localdomain",
-  "metadata", "metadata.google.internal",
-  "169.254.169.254",  // canonical — also caught by range check
-  "instance-data",    // AWS internal alias
+  "localhost",
+  "local",
+  "localdomain",
+  "metadata",
+  "metadata.google.internal",
+  "169.254.169.254", // canonical — also caught by range check
+  "instance-data", // AWS internal alias
 ]);
 
 // ─── Main scanner ─────────────────────────────────────────────────────────────
 
 export interface SsrfSignal {
-  detected:   boolean;
-  payload:    string;         // the suspicious URL found
-  field:      string;         // which parameter name triggered it
-  reason:     string;         // "private-ip:loopback", "dangerous-scheme:gopher", etc.
+  detected: boolean;
+  payload: string; // the suspicious URL found
+  field: string; // which parameter name triggered it
+  reason: string; // "private-ip:loopback", "dangerous-scheme:gopher", etc.
 }
 
 function checkUrl(rawUrl: string, fieldName: string): SsrfSignal | null {
@@ -198,12 +213,17 @@ function checkUrl(rawUrl: string, fieldName: string): SsrfSignal | null {
     return null; // unparseable — not a URL
   }
 
-  const scheme   = parsed.protocol.replace(":", "").toLowerCase();
+  const scheme = parsed.protocol.replace(":", "").toLowerCase();
   const hostname = parsed.hostname.toLowerCase().replace(/\[|\]/g, ""); // strip IPv6 brackets
 
   // 1. Dangerous scheme check
   if (DANGEROUS_SCHEMES.has(scheme)) {
-    return { detected: true, payload: rawUrl, field: fieldName, reason: `dangerous-scheme:${scheme}` };
+    return {
+      detected: true,
+      payload: rawUrl,
+      field: fieldName,
+      reason: `dangerous-scheme:${scheme}`,
+    };
   }
 
   // 2. Only proceed for http/https from here
@@ -211,7 +231,12 @@ function checkUrl(rawUrl: string, fieldName: string): SsrfSignal | null {
 
   // 3. Known internal hostname aliases
   if (INTERNAL_HOSTNAMES.has(hostname)) {
-    return { detected: true, payload: rawUrl, field: fieldName, reason: `internal-hostname:${hostname}` };
+    return {
+      detected: true,
+      payload: rawUrl,
+      field: fieldName,
+      reason: `internal-hostname:${hostname}`,
+    };
   }
 
   // 4. Normalize IP (handles hex, octal, decimal, IPv6-mapped)
@@ -231,7 +256,7 @@ function checkUrl(rawUrl: string, fieldName: string): SsrfSignal | null {
  * Returns the first suspicious signal found, or null if clean.
  */
 export function scanForSsrf(
-  body:  unknown,
+  body: unknown,
   query: Record<string, string | string[] | undefined>,
 ): SsrfSignal | null {
   const candidates: { name: string; value: string }[] = [];

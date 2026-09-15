@@ -5,7 +5,11 @@ function b64url(obj: unknown): string {
   return Buffer.from(JSON.stringify(obj)).toString("base64url");
 }
 
-function makeJwt(header: Record<string, unknown>, payload: Record<string, unknown>, sig = "abc"): string {
+function makeJwt(
+  header: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  sig = "abc",
+): string {
   return `${b64url(header)}.${b64url(payload)}.${sig}`;
 }
 
@@ -78,11 +82,7 @@ describe("scanRequestForJwtAttacks", () => {
 
   it("flags alg:none in Authorization header", () => {
     const token = `${b64url({ alg: "none" })}.${b64url({ sub: "x" })}.x`;
-    const result = scanRequestForJwtAttacks(
-      { authorization: `Bearer ${token}` },
-      {},
-      {},
-    );
+    const result = scanRequestForJwtAttacks({ authorization: `Bearer ${token}` }, {}, {});
     expect(result?.detected).toBe(true);
     expect(result?.attack).toBe("alg_none");
   });

@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Anomira, EventName } from "../index.js";
 
 const BASE_CONFIG = {
-  apiKey:          "sk_test_key",
-  appId:           "app_test_123",
-  ingestUrl:       "https://ingest.example.com/v1/events",
+  apiKey: "sk_test_key",
+  appId: "app_test_123",
+  ingestUrl: "https://ingest.example.com/v1/events",
   flushIntervalMs: 60_000,
-  maxBatchSize:    100,
-  maxRetries:      1,
-  debug:           false,
+  maxBatchSize: 100,
+  maxRetries: 1,
+  debug: false,
 };
 
 describe("Anomira client", () => {
@@ -58,7 +58,10 @@ describe("Anomira client", () => {
     await sentinel.flush();
 
     const ingestCalls = fetchSpy.mock.calls.filter(
-      (c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST",
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
     );
     expect(ingestCalls.length).toBeGreaterThanOrEqual(1);
     const body = JSON.parse(ingestCalls[0]?.[1]?.body as string) as {
@@ -78,7 +81,10 @@ describe("Anomira client", () => {
     await sentinel.flush();
 
     const ingestCalls = fetchSpy.mock.calls.filter(
-      (c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST",
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
     );
     const body = JSON.parse(ingestCalls[0]?.[1]?.body as string) as {
       events: Array<{ ts: number }>;
@@ -90,14 +96,17 @@ describe("Anomira client", () => {
   it("track() with meta embeds it in the event", async () => {
     const sentinel = new Anomira(BASE_CONFIG);
     sentinel.track(EventName.OTP_FAILED, {
-      ip:     "9.9.9.9",
+      ip: "9.9.9.9",
       userId: "user_2",
-      meta:   { endpoint: "/api/otp/verify", attempts: 3 },
+      meta: { endpoint: "/api/otp/verify", attempts: 3 },
     });
     await sentinel.flush();
 
     const ingestCalls = fetchSpy.mock.calls.filter(
-      (c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST",
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
     );
     const body = JSON.parse(ingestCalls[0]?.[1]?.body as string) as {
       events: Array<{ meta: { endpoint: string; attempts: number } }>;
@@ -124,11 +133,17 @@ describe("Anomira client", () => {
   it("flush() on empty buffer is a no-op for events", async () => {
     const sentinel = new Anomira(BASE_CONFIG);
     const before = fetchSpy.mock.calls.filter(
-      (c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST",
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
     ).length;
     await sentinel.flush();
     const after = fetchSpy.mock.calls.filter(
-      (c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST",
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
     ).length;
     expect(after).toBe(before);
   });
@@ -136,12 +151,15 @@ describe("Anomira client", () => {
   it("multiple track() calls are batched in one flush", async () => {
     const sentinel = new Anomira(BASE_CONFIG);
     sentinel.track(EventName.LOGIN_FAILED, { ip: "1.1.1.1" });
-    sentinel.track(EventName.OTP_FAILED,   { ip: "2.2.2.2" });
-    sentinel.track(EventName.RATE_LIMIT,   { ip: "3.3.3.3" });
+    sentinel.track(EventName.OTP_FAILED, { ip: "2.2.2.2" });
+    sentinel.track(EventName.RATE_LIMIT, { ip: "3.3.3.3" });
     await sentinel.flush();
 
     const ingestCalls = fetchSpy.mock.calls.filter(
-      (c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST",
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
     );
     expect(ingestCalls.length).toBeGreaterThanOrEqual(1);
     const body = JSON.parse(ingestCalls[0]?.[1]?.body as string) as {

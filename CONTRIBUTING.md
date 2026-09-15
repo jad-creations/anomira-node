@@ -74,13 +74,13 @@ See [examples/README.md](examples/README.md) for the hosted-ingest override
 This package emits events over HTTP. It does not render a UI. “Working” means
 the SDK built the right payload and sent it to the right URL.
 
-| What you changed | Required check | What success looks like |
-| --- | --- | --- |
-| Detector, client, buffer, Express middleware | `npm test` (add or update a case in `src/__tests__/`) | The new assertion passes |
-| Fastify plugin or real HTTP wiring | Build, then run `examples/fastify` or `examples/express` and `curl` the routes | `[mock-ingest]` prints the expected event names |
-| CLI scanner (`src/cli.ts`) | `npm run build` then `node dist/cli.cjs scan ./src` | Exit code and output match the intended behavior |
-| Types or public API | `npm run typecheck` plus README / changelog | Callers can use the new export |
-| Dashboard charts, Logs view, API Surface | Out of scope for this repo | Do not block an SDK PR on this |
+| What you changed                             | Required check                                                                 | What success looks like                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------ |
+| Detector, client, buffer, Express middleware | `npm test` (add or update a case in `src/__tests__/`)                          | The new assertion passes                         |
+| Fastify plugin or real HTTP wiring           | Build, then run `examples/fastify` or `examples/express` and `curl` the routes | `[mock-ingest]` prints the expected event names  |
+| CLI scanner (`src/cli.ts`)                   | `npm run build` then `node dist/cli.cjs scan ./src`                            | Exit code and output match the intended behavior |
+| Types or public API                          | `npm run typecheck` plus README / changelog                                    | Callers can use the new export                   |
+| Dashboard charts, Logs view, API Surface     | Out of scope for this repo                                                     | Do not block an SDK PR on this                   |
 
 **In scope for every PR:** tests, typecheck, lint, and build.
 
@@ -96,17 +96,17 @@ If the test or `[mock-ingest]` line is correct, the SDK did its job.
 
 ## Project layout
 
-| Path | What it is |
-| --- | --- |
-| `src/index.ts` | Public exports. Anything not exported from here is internal |
-| `src/client.ts` | `AnomiraClient` — track, flush, sync, logs, middleware factories |
-| `src/buffer.ts` | Event batching and retries |
-| `src/types.ts` | `AnomiraConfig`, `EventName`, payload types |
-| `src/middleware/` | Express and Fastify adapters |
-| `src/cli.ts` | `anomira` secret-scanner CLI |
-| `src/__tests__/` | Vitest suites (see coverage notes below) |
-| `examples/` | Express/Fastify demos plus a local mock ingest (no Anomira account) |
-| `dist/` | Build output (do not edit or commit) |
+| Path              | What it is                                                          |
+| ----------------- | ------------------------------------------------------------------- |
+| `src/index.ts`    | Public exports. Anything not exported from here is internal         |
+| `src/client.ts`   | `AnomiraClient` — track, flush, sync, logs, middleware factories    |
+| `src/buffer.ts`   | Event batching and retries                                          |
+| `src/types.ts`    | `AnomiraConfig`, `EventName`, payload types                         |
+| `src/middleware/` | Express and Fastify adapters                                        |
+| `src/cli.ts`      | `anomira` secret-scanner CLI                                        |
+| `src/__tests__/`  | Vitest suites (see coverage notes below)                            |
+| `examples/`       | Express/Fastify demos plus a local mock ingest (no Anomira account) |
+| `dist/`           | Build output (do not edit or commit)                                |
 
 Detector helpers live next to the client (`geo-velocity.ts`, `ssrf.ts`,
 `jwt-detect.ts`, and similar). Follow those modules when you add a new
@@ -115,12 +115,12 @@ the client, and add a Vitest case.
 
 ### What tests cover today
 
-| Suite | Covers | Does not cover |
-| --- | --- | --- |
-| `src/__tests__/client.test.ts` | Config, `track()`, `flush()` payloads | Dashboard delivery |
-| `src/__tests__/buffer.test.ts` | Batch size, flush, retries | — |
+| Suite                                      | Covers                                                                                                  | Does not cover        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | --------------------- |
+| `src/__tests__/client.test.ts`             | Config, `track()`, `flush()` payloads                                                                   | Dashboard delivery    |
+| `src/__tests__/buffer.test.ts`             | Batch size, flush, retries                                                                              | —                     |
 | `src/__tests__/middleware-express.test.ts` | Express middleware with mocked `req`/`res` (login failure, rate limit, path traversal, XSS, scanner UA) | A real Express server |
-| `src/__tests__/geo-velocity.test.ts` | Impossible-travel math with mocked geo lookups | Live geolocation |
+| `src/__tests__/geo-velocity.test.ts`       | Impossible-travel math with mocked geo lookups                                                          | Live geolocation      |
 
 There is **no Fastify test suite** and **no CLI test suite**. CI runs Vitest
 only; it does not boot `examples/`. If you change Fastify or the CLI, add

@@ -22,9 +22,7 @@ export function scanForXss(body: unknown, depth = 0): boolean {
   }
 
   if (typeof body === "object") {
-    return Object.values(body as Record<string, unknown>).some((v) =>
-      scanForXss(v, depth + 1),
-    );
+    return Object.values(body as Record<string, unknown>).some((v) => scanForXss(v, depth + 1));
   }
 
   return false;

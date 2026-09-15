@@ -5,10 +5,18 @@ import { scanForLeaks } from "./sensitive.js";
 import type { AnomiraConfig, SdkEvent, FirewallRule, EndpointDeclaration } from "./types.js";
 import { EventName } from "./types.js";
 import { detectAgent } from "./agent-detection.js";
-import { computeBrowserFingerprint, extractHttp2Settings, extractUpstreamTls } from "./behavioral-fingerprint.js";
+import {
+  computeBrowserFingerprint,
+  extractHttp2Settings,
+  extractUpstreamTls,
+} from "./behavioral-fingerprint.js";
 import { scanForSsrf } from "./ssrf.js";
 import { scanRequestForJwtAttacks } from "./jwt-detect.js";
-import { detectHoneypotType, generateHoneypotResponse, makeAdminLoginFailed } from "./honeypot-responses.js";
+import {
+  detectHoneypotType,
+  generateHoneypotResponse,
+  makeAdminLoginFailed,
+} from "./honeypot-responses.js";
 import { randomBytes } from "node:crypto";
 import { SDK_USER_AGENT } from "./version.js";
 import { hasPathTraversal } from "./path-traversal.js";
@@ -16,17 +24,17 @@ import { scanForXss } from "./xss-detect.js";
 
 interface RequestContext {
   endpoint: string;
-  method:   string;
-  ip:       string;
+  method: string;
+  ip: string;
 }
 
 // One shared ALS instance per SDK module load
 const requestContext = new AsyncLocalStorage<RequestContext>();
 
-const DEFAULT_INGEST_URL    = "https://ingest.anomira.io/v1/events";
-const DEFAULT_BATCH_SIZE    = 100;
-const DEFAULT_FLUSH_MS      = 5_000;
-const DEFAULT_MAX_RETRIES   = 3;
+const DEFAULT_INGEST_URL = "https://ingest.anomira.io/v1/events";
+const DEFAULT_BATCH_SIZE = 100;
+const DEFAULT_FLUSH_MS = 5_000;
+const DEFAULT_MAX_RETRIES = 3;
 
 // ── Sensitive field taxonomy ──────────────────────────────────────────────────
 // Categorised so the dashboard can apply the right security action per category.
@@ -35,40 +43,81 @@ const DEFAULT_MAX_RETRIES   = 3;
 
 const SENSITIVE_FIELDS: Record<string, string[]> = {
   identity: [
-    "first_name", "last_name", "full_name", "name",
-    "bvn", "nin", "ssn", "national_id", "tin",
-    "passport", "passport_number",
-    "drivers_license", "license_number",
+    "first_name",
+    "last_name",
+    "full_name",
+    "name",
+    "bvn",
+    "nin",
+    "ssn",
+    "national_id",
+    "tin",
+    "passport",
+    "passport_number",
+    "drivers_license",
+    "license_number",
     "voter_id",
-    "dob", "date_of_birth", "birth_date", "birthdate",
-    "gender", "marital_status", "nationality",
+    "dob",
+    "date_of_birth",
+    "birth_date",
+    "birthdate",
+    "gender",
+    "marital_status",
+    "nationality",
   ],
   contact: [
     "email",
-    "phone", "phone_number", "mobile", "mobile_number",
-    "address", "street", "city", "state", "postal_code", "zip",
+    "phone",
+    "phone_number",
+    "mobile",
+    "mobile_number",
+    "address",
+    "street",
+    "city",
+    "state",
+    "postal_code",
+    "zip",
   ],
   financial: [
-    "card_number", "credit_card", "debit_card", "cvv",
-    "account_number", "bank_account", "routing_number", "sort_code",
-    "iban", "swift", "wallet_id",
+    "card_number",
+    "credit_card",
+    "debit_card",
+    "cvv",
+    "account_number",
+    "bank_account",
+    "routing_number",
+    "sort_code",
+    "iban",
+    "swift",
+    "wallet_id",
   ],
   authentication: [
-    "password", "pin", "otp",
-    "secret", "private_key", "api_key",
-    "access_token", "refresh_token", "jwt", "bearer_token",
-    "security_answer", "mother_maiden_name",
+    "password",
+    "pin",
+    "otp",
+    "secret",
+    "private_key",
+    "api_key",
+    "access_token",
+    "refresh_token",
+    "jwt",
+    "bearer_token",
+    "security_answer",
+    "mother_maiden_name",
   ],
-  biometric: [
-    "fingerprint", "face_id", "iris", "voiceprint", "biometric",
-  ],
-  health: [
-    "medical_record", "diagnosis", "blood_group", "insurance_id",
-  ],
+  biometric: ["fingerprint", "face_id", "iris", "voiceprint", "biometric"],
+  health: ["medical_record", "diagnosis", "blood_group", "insurance_id"],
   fintech: [
-    "kyc_id", "customer_id", "beneficiary_account", "transaction_pin",
-    "wallet_balance", "bank_verification_number",
-    "virtual_account", "monnify_account", "paystack_customer", "flutterwave_customer",
+    "kyc_id",
+    "customer_id",
+    "beneficiary_account",
+    "transaction_pin",
+    "wallet_balance",
+    "bank_verification_number",
+    "virtual_account",
+    "monnify_account",
+    "paystack_customer",
+    "flutterwave_customer",
   ],
 };
 
@@ -82,12 +131,12 @@ for (const [cat, fields] of Object.entries(SENSITIVE_FIELDS)) {
 // Catches obfuscated/generic field names ("x1", "identifier", etc.).
 // Each regex is anchored to avoid partial matches on longer strings.
 const VALUE_PATTERNS: { name: string; category: string; re: RegExp }[] = [
-  { name: "email",       category: "contact",        re: /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/ },
-  { name: "bvn_nin",     category: "identity",       re: /^\d{11}$/ },
-  { name: "card_number", category: "financial",      re: /^\d{13,19}$/ },
-  { name: "phone_ng",    category: "contact",        re: /^(?:\+234|0)[789][01]\d{8}$/ },
-  { name: "jwt",         category: "authentication", re: /^eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\./ },
-  { name: "iban",        category: "financial",      re: /^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/ },
+  { name: "email", category: "contact", re: /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/ },
+  { name: "bvn_nin", category: "identity", re: /^\d{11}$/ },
+  { name: "card_number", category: "financial", re: /^\d{13,19}$/ },
+  { name: "phone_ng", category: "contact", re: /^(?:\+234|0)[789][01]\d{8}$/ },
+  { name: "jwt", category: "authentication", re: /^eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\./ },
+  { name: "iban", category: "financial", re: /^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/ },
 ];
 
 /**
@@ -106,22 +155,28 @@ const VALUE_PATTERNS: { name: string; category: string; re: RegExp }[] = [
  */
 export class AnomiraClient {
   readonly config: Required<Omit<AnomiraConfig, "getUserId" | "getIp" | "detect" | "autoBlock">> & {
-    getUserId:      NonNullable<AnomiraConfig["getUserId"]>;
-    getIp:          NonNullable<AnomiraConfig["getIp"]>;
-    detect:         Required<NonNullable<AnomiraConfig["detect"]>>;
+    getUserId: NonNullable<AnomiraConfig["getUserId"]>;
+    getIp: NonNullable<AnomiraConfig["getIp"]>;
+    detect: Required<NonNullable<AnomiraConfig["detect"]>>;
     captureConsole: boolean;
-    service:        string;
-    autoBlock:      Required<NonNullable<AnomiraConfig["autoBlock"]>>;
+    service: string;
+    autoBlock: Required<NonNullable<AnomiraConfig["autoBlock"]>>;
   };
 
   private readonly buffer: EventBuffer;
-  private readonly logBuffer: Array<{ level: string; service: string; message: string; meta: Record<string, unknown>; ts: number }> = [];
-  private logFlushTimer:        ReturnType<typeof setInterval> | null = null;
-  private blocklistTimer:       ReturnType<typeof setInterval> | null = null;
-  private firewallTimer:        ReturnType<typeof setInterval> | null = null;
+  private readonly logBuffer: Array<{
+    level: string;
+    service: string;
+    message: string;
+    meta: Record<string, unknown>;
+    ts: number;
+  }> = [];
+  private logFlushTimer: ReturnType<typeof setInterval> | null = null;
+  private blocklistTimer: ReturnType<typeof setInterval> | null = null;
+  private firewallTimer: ReturnType<typeof setInterval> | null = null;
   private communityThreatTimer: ReturnType<typeof setInterval> | null = null;
-  private honeypotTimer:        ReturnType<typeof setInterval> | null = null;
-  private canaryTimer:          ReturnType<typeof setInterval> | null = null;
+  private honeypotTimer: ReturnType<typeof setInterval> | null = null;
+  private canaryTimer: ReturnType<typeof setInterval> | null = null;
   /** True when credentials are missing — all operations become no-ops. */
   private disabled = false;
   /** In-process cache of manually blocked IPs — refreshed every 60 s. */
@@ -148,87 +203,124 @@ export class AnomiraClient {
   /** In-process cache of firewall rules with pre-compiled regex — refreshed every 60 s. */
   private compiledRules: Array<{ rule: FirewallRule; re?: RegExp }> = [];
   // Saved originals — used by SDK internals so patched console doesn't recurse
-  private readonly _origLog   = console.log.bind(console);
-  private readonly _origWarn  = console.warn.bind(console);
+  private readonly _origLog = console.log.bind(console);
+  private readonly _origWarn = console.warn.bind(console);
   private readonly _origError = console.error.bind(console);
 
   constructor(config: AnomiraConfig) {
     if (!config.apiKey || !config.appId) {
-      const missing = [!config.apiKey && "apiKey", !config.appId && "appId"].filter(Boolean).join(", ");
-      console.warn(`[Anomira] SDK disabled — missing config: ${missing}. Set ANOMIRA_API_KEY and ANOMIRA_APP_ID to enable monitoring.`);
+      const missing = [!config.apiKey && "apiKey", !config.appId && "appId"]
+        .filter(Boolean)
+        .join(", ");
+      console.warn(
+        `[Anomira] SDK disabled — missing config: ${missing}. Set ANOMIRA_API_KEY and ANOMIRA_APP_ID to enable monitoring.`,
+      );
       this.disabled = true;
       // Provide safe defaults so the rest of the class doesn't blow up
       this.config = {
-        apiKey: "", appId: "", ingestUrl: DEFAULT_INGEST_URL, geoLookupUrl: "",
-        maxBatchSize: DEFAULT_BATCH_SIZE, flushIntervalMs: DEFAULT_FLUSH_MS,
-        maxRetries: DEFAULT_MAX_RETRIES, debug: false, captureConsole: false, service: "app",
-        getUserId: defaultGetUserId, getIp: defaultGetIp,
-        detect:    { bruteForce: true, rateAbuse: true, pathTraversal: true, xss: true, scanDetection: true, geoVelocity: true, ssrf: true, jwtManipulation: true },
+        apiKey: "",
+        appId: "",
+        ingestUrl: DEFAULT_INGEST_URL,
+        geoLookupUrl: "",
+        maxBatchSize: DEFAULT_BATCH_SIZE,
+        flushIntervalMs: DEFAULT_FLUSH_MS,
+        maxRetries: DEFAULT_MAX_RETRIES,
+        debug: false,
+        captureConsole: false,
+        service: "app",
+        getUserId: defaultGetUserId,
+        getIp: defaultGetIp,
+        detect: {
+          bruteForce: true,
+          rateAbuse: true,
+          pathTraversal: true,
+          xss: true,
+          scanDetection: true,
+          geoVelocity: true,
+          ssrf: true,
+          jwtManipulation: true,
+        },
         autoBlock: { enabled: true, communityThreshold: 85 },
       };
-      this.buffer = new EventBuffer({ appId: "", apiKey: "", ingestUrl: DEFAULT_INGEST_URL, maxBatchSize: 0, flushIntervalMs: 999_999_999, maxRetries: 0, debug: false });
+      this.buffer = new EventBuffer({
+        appId: "",
+        apiKey: "",
+        ingestUrl: DEFAULT_INGEST_URL,
+        maxBatchSize: 0,
+        flushIntervalMs: 999_999_999,
+        maxRetries: 0,
+        debug: false,
+      });
       return;
     }
 
     this.config = {
-      apiKey:          config.apiKey,
-      appId:           config.appId,
-      ingestUrl:       config.ingestUrl       ?? DEFAULT_INGEST_URL,
-      geoLookupUrl:    config.geoLookupUrl    ?? "",
-      maxBatchSize:    config.maxBatchSize    ?? DEFAULT_BATCH_SIZE,
+      apiKey: config.apiKey,
+      appId: config.appId,
+      ingestUrl: config.ingestUrl ?? DEFAULT_INGEST_URL,
+      geoLookupUrl: config.geoLookupUrl ?? "",
+      maxBatchSize: config.maxBatchSize ?? DEFAULT_BATCH_SIZE,
       flushIntervalMs: config.flushIntervalMs ?? DEFAULT_FLUSH_MS,
-      maxRetries:      config.maxRetries      ?? DEFAULT_MAX_RETRIES,
-      debug:           config.debug           ?? false,
-      captureConsole:  config.captureConsole  ?? false,
-      service:         config.service         ?? "app",
-      getUserId:       config.getUserId       ?? defaultGetUserId,
-      getIp:           config.getIp           ?? defaultGetIp,
+      maxRetries: config.maxRetries ?? DEFAULT_MAX_RETRIES,
+      debug: config.debug ?? false,
+      captureConsole: config.captureConsole ?? false,
+      service: config.service ?? "app",
+      getUserId: config.getUserId ?? defaultGetUserId,
+      getIp: config.getIp ?? defaultGetIp,
       detect: {
-        bruteForce:    config.detect?.bruteForce    ?? true,
-        rateAbuse:     config.detect?.rateAbuse     ?? true,
+        bruteForce: config.detect?.bruteForce ?? true,
+        rateAbuse: config.detect?.rateAbuse ?? true,
         pathTraversal: config.detect?.pathTraversal ?? true,
-        xss:           config.detect?.xss           ?? true,
+        xss: config.detect?.xss ?? true,
         scanDetection: config.detect?.scanDetection ?? true,
-        geoVelocity:   config.detect?.geoVelocity   ?? true,
-        ssrf:               config.detect?.ssrf               ?? true,
-        jwtManipulation:    config.detect?.jwtManipulation    ?? true,
+        geoVelocity: config.detect?.geoVelocity ?? true,
+        ssrf: config.detect?.ssrf ?? true,
+        jwtManipulation: config.detect?.jwtManipulation ?? true,
       },
       autoBlock: {
-        enabled:            config.autoBlock?.enabled            ?? true,
+        enabled: config.autoBlock?.enabled ?? true,
         communityThreshold: config.autoBlock?.communityThreshold ?? 85,
       },
     };
 
     this.buffer = new EventBuffer({
-      appId:          this.config.appId,
-      apiKey:         this.config.apiKey,
-      ingestUrl:      this.config.ingestUrl,
-      maxBatchSize:   this.config.maxBatchSize,
-      flushIntervalMs:this.config.flushIntervalMs,
-      maxRetries:     this.config.maxRetries,
-      debug:          this.config.debug,
+      appId: this.config.appId,
+      apiKey: this.config.apiKey,
+      ingestUrl: this.config.ingestUrl,
+      maxBatchSize: this.config.maxBatchSize,
+      flushIntervalMs: this.config.flushIntervalMs,
+      maxRetries: this.config.maxRetries,
+      debug: this.config.debug,
     });
 
     void this.#validateCredentials();
 
     // Fetch blocked-IP list immediately, then refresh every 60 s
     void this.#refreshBlocklist();
-    this.blocklistTimer = setInterval(() => { void this.#refreshBlocklist(); }, 60_000);
+    this.blocklistTimer = setInterval(() => {
+      void this.#refreshBlocklist();
+    }, 60_000);
     if (this.blocklistTimer.unref) this.blocklistTimer.unref();
 
     // Fetch firewall rules immediately, then refresh every 60 s
     void this.#refreshFirewallRules();
-    this.firewallTimer = setInterval(() => { void this.#refreshFirewallRules(); }, 60_000);
+    this.firewallTimer = setInterval(() => {
+      void this.#refreshFirewallRules();
+    }, 60_000);
     if (this.firewallTimer.unref) this.firewallTimer.unref();
 
     // Fetch honeypot paths immediately, then refresh every 60 s.
     void this.#refreshHoneypotPaths();
-    this.honeypotTimer = setInterval(() => { void this.#refreshHoneypotPaths(); }, 60_000);
+    this.honeypotTimer = setInterval(() => {
+      void this.#refreshHoneypotPaths();
+    }, 60_000);
     if (this.honeypotTimer.unref) this.honeypotTimer.unref();
 
     // Fetch canary tokens (harvested credential strings to detect in requests).
     void this.#refreshCanaryTokens();
-    this.canaryTimer = setInterval(() => { void this.#refreshCanaryTokens(); }, 60_000);
+    this.canaryTimer = setInterval(() => {
+      void this.#refreshCanaryTokens();
+    }, 60_000);
     if (this.canaryTimer.unref) this.canaryTimer.unref();
 
     // Fetch community threat intelligence immediately, then refresh every 60 s.
@@ -236,11 +328,15 @@ export class AnomiraClient {
     // network are auto-blocked when their confidence score meets the threshold,
     // regardless of whether a human has manually reviewed them.
     void this.#refreshCommunityThreats();
-    this.communityThreatTimer = setInterval(() => { void this.#refreshCommunityThreats(); }, 60_000);
+    this.communityThreatTimer = setInterval(() => {
+      void this.#refreshCommunityThreats();
+    }, 60_000);
     if (this.communityThreatTimer.unref) this.communityThreatTimer.unref();
 
     // Flush logs every 10s (separate from events buffer)
-    this.logFlushTimer = setInterval(() => { void this.#flushLogs(); }, 10_000);
+    this.logFlushTimer = setInterval(() => {
+      void this.#flushLogs();
+    }, 10_000);
     if (this.logFlushTimer.unref) this.logFlushTimer.unref();
 
     if (this.config.captureConsole) this.#interceptConsole();
@@ -249,21 +345,19 @@ export class AnomiraClient {
   #interceptConsole(): void {
     const map: Array<[keyof Console, "debug" | "info" | "warn" | "error"]> = [
       ["debug", "debug"],
-      ["log",   "info"],
-      ["info",  "info"],
-      ["warn",  "warn"],
+      ["log", "info"],
+      ["info", "info"],
+      ["warn", "warn"],
       ["error", "error"],
     ];
     for (const [method, level] of map) {
       const original = (console[method] as (...a: unknown[]) => void).bind(console);
       (console as unknown as Record<string, unknown>)[method] = (...args: unknown[]) => {
-        original(...args);  // still prints to terminal
+        original(...args); // still prints to terminal
         // Skip SDK's own internal messages to avoid noise in the Logs dashboard
         const first = args[0];
         if (typeof first === "string" && first.startsWith("[Anomira]")) return;
-        const message = args
-          .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
-          .join(" ");
+        const message = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
         const ctx = requestContext.getStore();
         this.log(level, message, {
           service: this.config.service,
@@ -278,17 +372,19 @@ export class AnomiraClient {
     try {
       const res = await fetch(syncUrl, {
         headers: {
-          Authorization:  `Bearer ${this.config.apiKey}`,
+          Authorization: `Bearer ${this.config.apiKey}`,
           "User-Agent": SDK_USER_AGENT,
         },
         signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) return;
-      const data = await res.json() as { ips?: string[]; allowedIps?: string[] };
-      this.blockedIpCache    = new Set(data.ips ?? []);
+      const data = (await res.json()) as { ips?: string[]; allowedIps?: string[] };
+      this.blockedIpCache = new Set(data.ips ?? []);
       this.whitelistedIpCache = new Set(data.allowedIps ?? []);
       if (this.config.debug && this.blockedIpCache.size > 0) {
-        this._origLog(`[Anomira] blocklist refreshed — ${this.blockedIpCache.size} blocked, ${this.whitelistedIpCache.size} whitelisted`);
+        this._origLog(
+          `[Anomira] blocklist refreshed — ${this.blockedIpCache.size} blocked, ${this.whitelistedIpCache.size} whitelisted`,
+        );
       }
     } catch {
       // Network error: keep the existing cache, never throw
@@ -307,7 +403,7 @@ export class AnomiraClient {
       });
       if (!res.ok) return;
 
-      const data = await res.json() as {
+      const data = (await res.json()) as {
         threats?: Array<{ ip: string; score: number; topAttack: string }>;
       };
 
@@ -330,15 +426,19 @@ export class AnomiraClient {
     try {
       const res = await fetch(syncUrl, {
         headers: { Authorization: `Bearer ${this.config.apiKey}`, "User-Agent": SDK_USER_AGENT },
-        signal:  AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) return;
-      const data = await res.json() as { paths?: string[] };
+      const data = (await res.json()) as { paths?: string[] };
       this.honeypotPaths = new Set((data.paths ?? []).map((p) => p.toLowerCase()));
       if (this.config.debug && this.honeypotPaths.size > 0) {
-        this._origLog(`[Anomira] honeypot paths refreshed — ${this.honeypotPaths.size} traps active`);
+        this._origLog(
+          `[Anomira] honeypot paths refreshed — ${this.honeypotPaths.size} traps active`,
+        );
       }
-    } catch { /* keep existing cache on error */ }
+    } catch {
+      /* keep existing cache on error */
+    }
   }
 
   async #refreshCanaryTokens(): Promise<void> {
@@ -346,12 +446,14 @@ export class AnomiraClient {
     try {
       const res = await fetch(syncUrl, {
         headers: { Authorization: `Bearer ${this.config.apiKey}`, "User-Agent": SDK_USER_AGENT },
-        signal:  AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) return;
-      const data = await res.json() as { tokens?: string[] };
+      const data = (await res.json()) as { tokens?: string[] };
       this.canaryTokenCache = new Set(data.tokens ?? []);
-    } catch { /* keep existing cache on error */ }
+    } catch {
+      /* keep existing cache on error */
+    }
   }
 
   async #refreshFirewallRules(): Promise<void> {
@@ -365,13 +467,24 @@ export class AnomiraClient {
         signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) return;
-      const data = await res.json() as { rules?: FirewallRule[] };
+      const data = (await res.json()) as { rules?: FirewallRule[] };
       this.compiledRules = (data.rules ?? []).map((rule) => ({
         rule,
-        re: rule.operator === "regex" ? (() => { try { return new RegExp(rule.value, "i"); } catch { return undefined; } })() : undefined,
+        re:
+          rule.operator === "regex"
+            ? (() => {
+                try {
+                  return new RegExp(rule.value, "i");
+                } catch {
+                  return undefined;
+                }
+              })()
+            : undefined,
       }));
       if (this.config.debug && this.compiledRules.length > 0) {
-        this._origLog(`[Anomira] firewall rules refreshed — ${this.compiledRules.length} active rules`);
+        this._origLog(
+          `[Anomira] firewall rules refreshed — ${this.compiledRules.length} active rules`,
+        );
       }
     } catch {
       // Network error: keep existing cache, never throw
@@ -381,29 +494,45 @@ export class AnomiraClient {
   /** Evaluate all cached firewall rules against the current request.
    *  Returns the first matching rule, or null if none match. */
   #matchFirewallRule(req: {
-    url:     string;
-    body:    unknown;
+    url: string;
+    body: unknown;
     headers: Record<string, string | undefined>;
-    ip:      string;
+    ip: string;
   }): { rule: FirewallRule } | null {
     for (const { rule, re } of this.compiledRules) {
       let target: string;
       switch (rule.field) {
-        case "url":        target = req.url; break;
-        case "body":       target = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? ""); break;
-        case "header":     target = req.headers[(rule.headerName ?? "").toLowerCase()] ?? ""; break;
-        case "user_agent": target = req.headers["user-agent"] ?? ""; break;
-        case "ip":         target = req.ip; break;
-        default:           continue;
+        case "url":
+          target = req.url;
+          break;
+        case "body":
+          target = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? "");
+          break;
+        case "header":
+          target = req.headers[(rule.headerName ?? "").toLowerCase()] ?? "";
+          break;
+        case "user_agent":
+          target = req.headers["user-agent"] ?? "";
+          break;
+        case "ip":
+          target = req.ip;
+          break;
+        default:
+          continue;
       }
 
-      const matched = rule.operator === "regex"
-        ? (re?.test(target) ?? false)
-        : rule.operator === "contains"    ? target.includes(rule.value)
-        : rule.operator === "equals"      ? target === rule.value
-        : rule.operator === "starts_with" ? target.startsWith(rule.value)
-        : rule.operator === "ends_with"   ? target.endsWith(rule.value)
-        : false;
+      const matched =
+        rule.operator === "regex"
+          ? (re?.test(target) ?? false)
+          : rule.operator === "contains"
+            ? target.includes(rule.value)
+            : rule.operator === "equals"
+              ? target === rule.value
+              : rule.operator === "starts_with"
+                ? target.startsWith(rule.value)
+                : rule.operator === "ends_with"
+                  ? target.endsWith(rule.value)
+                  : false;
 
       if (matched) return { rule };
     }
@@ -416,14 +545,14 @@ export class AnomiraClient {
     const logsUrl = this.config.ingestUrl.replace(/\/v1\/events$/, "/v1/logs");
     try {
       const res = await fetch(logsUrl, {
-        method:   "POST",
+        method: "POST",
         redirect: "manual",
         headers: {
-          Authorization:  `Bearer ${this.config.apiKey}`,
+          Authorization: `Bearer ${this.config.apiKey}`,
           "Content-Type": "application/json",
           "User-Agent": SDK_USER_AGENT,
         },
-        body:   JSON.stringify({ appId: this.config.appId, logs: batch }),
+        body: JSON.stringify({ appId: this.config.appId, logs: batch }),
         signal: AbortSignal.timeout(8_000),
       });
       if (this.config.debug) {
@@ -437,12 +566,13 @@ export class AnomiraClient {
 
   async #validateCredentials(): Promise<void> {
     // Derive the ping URL from the ingest URL: swap /v1/events → /v1/ping
-    const pingUrl = this.config.ingestUrl.replace(/\/v1\/events$/, "/v1/ping")
-      + `?appId=${encodeURIComponent(this.config.appId)}`;
+    const pingUrl =
+      this.config.ingestUrl.replace(/\/v1\/events$/, "/v1/ping") +
+      `?appId=${encodeURIComponent(this.config.appId)}`;
 
     try {
       const res = await fetch(pingUrl, {
-        method:   "GET",
+        method: "GET",
         redirect: "manual",
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
@@ -452,7 +582,9 @@ export class AnomiraClient {
       });
 
       if (res.status >= 300 && res.status < 400) {
-        this._origWarn(`[Anomira] ❌ Wrong ingest URL — got redirect to ${res.headers.get("location")}. Check SENTINEL_INGEST_URL.`);
+        this._origWarn(
+          `[Anomira] ❌ Wrong ingest URL — got redirect to ${res.headers.get("location")}. Check SENTINEL_INGEST_URL.`,
+        );
         return;
       }
       if (res.ok) {
@@ -469,7 +601,11 @@ export class AnomiraClient {
       }
       this._origWarn(`[Anomira] ⚠️  Ingest returned HTTP ${res.status} — check your configuration`);
     } catch {
-      this._origWarn("[Anomira] ⚠️  Could not reach ingest endpoint — check SENTINEL_INGEST_URL (current: " + this.config.ingestUrl + ")");
+      this._origWarn(
+        "[Anomira] ⚠️  Could not reach ingest endpoint — check SENTINEL_INGEST_URL (current: " +
+          this.config.ingestUrl +
+          ")",
+      );
     }
   }
 
@@ -543,7 +679,9 @@ export class AnomiraClient {
    * Returns the block reason for an IP — useful for logging or custom responses.
    * Returns null if the IP is not blocked.
    */
-  blockReason(ip: string): { source: "manual" | "community"; score?: number; topAttack?: string } | null {
+  blockReason(
+    ip: string,
+  ): { source: "manual" | "community"; score?: number; topAttack?: string } | null {
     if (this.disabled) return null;
     if (this.blockedIpCache.has(ip)) return { source: "manual" };
     if (this.config.autoBlock.enabled) {
@@ -564,28 +702,28 @@ export class AnomiraClient {
     if (this.disabled) return;
     const blockedHitUrl = this.config.ingestUrl.replace(/\/v1\/events$/, "/v1/blocked-hit");
     fetch(blockedHitUrl, {
-      method:  "POST",
+      method: "POST",
       headers: {
-        "Content-Type":  "application/json",
-        "Authorization": `Bearer ${this.config.apiKey}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.config.apiKey}`,
       },
       body: JSON.stringify({
-        appId:     this.config.appId,
+        appId: this.config.appId,
         ip,
-        method:    meta.method,
-        endpoint:  meta.url,
+        method: meta.method,
+        endpoint: meta.url,
         userAgent: meta.userAgent,
-        ts:        Date.now(),
+        ts: Date.now(),
       }),
     }).catch(() => null);
   }
 
   /** Evaluate firewall rules against a request. Returns the matched rule or null. Synchronous. */
   matchFirewallRule(req: {
-    url:     string;
-    body:    unknown;
+    url: string;
+    body: unknown;
     headers: Record<string, string | undefined>;
-    ip:      string;
+    ip: string;
   }): { rule: FirewallRule } | null {
     return this.#matchFirewallRule(req);
   }
@@ -604,9 +742,9 @@ export class AnomiraClient {
        * context (e.g. from a background job or a webhook handler that has
        * the IP available separately).
        */
-      ip?:     string;
+      ip?: string;
       userId?: string;
-      meta?:   Record<string, unknown>;
+      meta?: Record<string, unknown>;
     },
   ): void {
     if (this.disabled) return;
@@ -618,9 +756,7 @@ export class AnomiraClient {
     //   3. Fall back to "0.0.0.0" so the event is still recorded
     const ctx = requestContext.getStore();
     const resolvedIp =
-      (data.ip && data.ip !== "0.0.0.0" && data.ip !== "")
-        ? data.ip
-        : (ctx?.ip ?? "0.0.0.0");
+      data.ip && data.ip !== "0.0.0.0" && data.ip !== "" ? data.ip : (ctx?.ip ?? "0.0.0.0");
 
     // Warn in debug mode when an explicitly-passed IP looks like a proxy address.
     // This catches the common mistake of passing `req.ip` behind Nginx, where
@@ -628,7 +764,7 @@ export class AnomiraClient {
     if (this.config.debug && data.ip && isPrivateIp(data.ip)) {
       this._origWarn(
         `[Anomira] Warning: track() received a private/loopback IP "${data.ip}" for event "${eventName}". ` +
-        `Behind a reverse proxy, req.ip is the proxy's address — use sentinel.getClientIp(req) instead.`,
+          `Behind a reverse proxy, req.ip is the proxy's address — use sentinel.getClientIp(req) instead.`,
       );
     }
 
@@ -641,11 +777,11 @@ export class AnomiraClient {
         : data.meta;
 
     const event: SdkEvent = {
-      name:   eventName,
-      ts:     Date.now(),
-      ip:     resolvedIp,
+      name: eventName,
+      ts: Date.now(),
+      ip: resolvedIp,
       userId: data.userId,
-      meta:   resolvedMeta,
+      meta: resolvedMeta,
     };
     this.buffer.push(event);
   }
@@ -663,16 +799,16 @@ export class AnomiraClient {
    * ```
    */
   async trackLogin(data: {
-    ip?:     string;
-    userId:  string;
-    meta?:   Record<string, unknown>;
+    ip?: string;
+    userId: string;
+    meta?: Record<string, unknown>;
   }): Promise<void> {
     if (this.disabled) return;
     const tsMs = Date.now();
 
     // Resolve IP the same way track() does — from context when not passed
-    const ctx        = requestContext.getStore();
-    const resolvedIp = (data.ip && data.ip !== "0.0.0.0") ? data.ip : (ctx?.ip ?? "0.0.0.0");
+    const ctx = requestContext.getStore();
+    const resolvedIp = data.ip && data.ip !== "0.0.0.0" ? data.ip : (ctx?.ip ?? "0.0.0.0");
 
     // Record the successful login
     this.track(EventName.LOGIN_SUCCESS, { ...data, ip: resolvedIp, meta: { ...data.meta } });
@@ -681,20 +817,25 @@ export class AnomiraClient {
     if (!this.config.detect.geoVelocity) return;
 
     try {
-      const result = await checkGeoVelocity(data.userId, resolvedIp, tsMs, this.config.geoLookupUrl || undefined);
+      const result = await checkGeoVelocity(
+        data.userId,
+        resolvedIp,
+        tsMs,
+        this.config.geoLookupUrl || undefined,
+      );
       if (!result) return;
 
       this.track(EventName.GEO_VELOCITY, {
-        ip:     resolvedIp,
+        ip: resolvedIp,
         userId: data.userId,
         meta: {
-          distanceKm:  result.distanceKm,
-          speedKmH:    result.speedKmH,
-          fromIp:      result.from.ip,
-          fromCity:    result.from.city,
+          distanceKm: result.distanceKm,
+          speedKmH: result.speedKmH,
+          fromIp: result.from.ip,
+          fromCity: result.from.city,
           fromCountry: result.from.country,
-          toCity:      result.to.city,
-          toCountry:   result.to.country,
+          toCity: result.to.city,
+          toCountry: result.to.country,
           minutesDiff: Math.round((result.to.tsMs - result.from.tsMs) / 60_000),
           ...data.meta,
         },
@@ -719,16 +860,16 @@ export class AnomiraClient {
    * ```
    */
   trackPhoneAuth(data: {
-    ip?:     string;
-    userId:  string;
-    phone:   string;
-    meta?:   Record<string, unknown>;
+    ip?: string;
+    userId: string;
+    phone: string;
+    meta?: Record<string, unknown>;
   }): void {
     if (this.disabled) return;
     this.track(EventName.PHONE_AUTH, {
-      ip:     data.ip, // track() auto-resolves from context if empty
+      ip: data.ip, // track() auto-resolves from context if empty
       userId: data.userId,
-      meta:   { phone: data.phone, ...data.meta },
+      meta: { phone: data.phone, ...data.meta },
     });
   }
 
@@ -742,9 +883,9 @@ export class AnomiraClient {
    * ```
    */
   log(
-    level:    "debug" | "info" | "warn" | "error" | "fatal",
-    message:  string,
-    meta?:    Record<string, unknown> & { service?: string },
+    level: "debug" | "info" | "warn" | "error" | "fatal",
+    message: string,
+    meta?: Record<string, unknown> & { service?: string },
   ): void {
     if (this.disabled) return;
     const { service, ...rest } = meta ?? {};
@@ -759,7 +900,13 @@ export class AnomiraClient {
       }
     }
 
-    this.logBuffer.push({ level, service: service ?? this.config.service, message, meta: rest, ts: Date.now() });
+    this.logBuffer.push({
+      level,
+      service: service ?? this.config.service,
+      message,
+      meta: rest,
+      ts: Date.now(),
+    });
     if (this.config.debug && leaks.length === 0) {
       this._origLog(`[Anomira] log:${level} ${message}`);
     }
@@ -787,7 +934,7 @@ export class AnomiraClient {
       await fetch(url, {
         method: "POST",
         headers: {
-          Authorization:  `Bearer ${this.config.apiKey}`,
+          Authorization: `Bearer ${this.config.apiKey}`,
           "Content-Type": "application/json",
           "User-Agent": SDK_USER_AGENT,
         },
@@ -806,12 +953,30 @@ export class AnomiraClient {
   async flush(): Promise<void> {
     if (this.disabled) return;
     // Clear all refresh timers so they don't fire after shutdown
-    if (this.blocklistTimer)       { clearInterval(this.blocklistTimer);       this.blocklistTimer       = null; }
-    if (this.firewallTimer)        { clearInterval(this.firewallTimer);        this.firewallTimer        = null; }
-    if (this.communityThreatTimer) { clearInterval(this.communityThreatTimer); this.communityThreatTimer = null; }
-    if (this.honeypotTimer)        { clearInterval(this.honeypotTimer);        this.honeypotTimer        = null; }
-    if (this.canaryTimer)          { clearInterval(this.canaryTimer);          this.canaryTimer          = null; }
-    if (this.logFlushTimer)        { clearInterval(this.logFlushTimer);        this.logFlushTimer        = null; }
+    if (this.blocklistTimer) {
+      clearInterval(this.blocklistTimer);
+      this.blocklistTimer = null;
+    }
+    if (this.firewallTimer) {
+      clearInterval(this.firewallTimer);
+      this.firewallTimer = null;
+    }
+    if (this.communityThreatTimer) {
+      clearInterval(this.communityThreatTimer);
+      this.communityThreatTimer = null;
+    }
+    if (this.honeypotTimer) {
+      clearInterval(this.honeypotTimer);
+      this.honeypotTimer = null;
+    }
+    if (this.canaryTimer) {
+      clearInterval(this.canaryTimer);
+      this.canaryTimer = null;
+    }
+    if (this.logFlushTimer) {
+      clearInterval(this.logFlushTimer);
+      this.logFlushTimer = null;
+    }
     await Promise.all([this.buffer.flush(), this.#flushLogs()]);
   }
 
@@ -891,9 +1056,9 @@ function defaultGetUserId(req: unknown): string | undefined {
 
   // ── Tier 3: Direct on req ─────────────────────────────────────────────────
   const direct =
-    (r["userId"]     as string | undefined) ??
-    (r["user_id"]    as string | undefined) ??
-    (r["accountId"]  as string | undefined) ??
+    (r["userId"] as string | undefined) ??
+    (r["user_id"] as string | undefined) ??
+    (r["accountId"] as string | undefined) ??
     (r["account_id"] as string | undefined) ??
     (r["customerId"] as string | undefined);
   if (direct && typeof direct === "string") return direct;
@@ -902,8 +1067,7 @@ function defaultGetUserId(req: unknown): string | undefined {
   const session = r["session"] as Record<string, unknown> | undefined;
   if (session && typeof session === "object") {
     const sessionDirect =
-      (session["userId"]  as string | undefined) ??
-      (session["user_id"] as string | undefined);
+      (session["userId"] as string | undefined) ?? (session["user_id"] as string | undefined);
     if (sessionDirect) return sessionDirect;
 
     const sessionUser = session["user"] as Record<string, unknown> | undefined;
@@ -924,11 +1088,12 @@ function defaultGetUserId(req: unknown): string | undefined {
       const parts = token.split(".");
       if (parts.length === 3) {
         // Base64URL → Base64 (replace - with + and _ with /) then pad to 4-byte boundary
-        const b64    = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+        const b64 = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
         const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-        const payload = JSON.parse(
-          Buffer.from(padded, "base64").toString("utf8"),
-        ) as Record<string, unknown>;
+        const payload = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<
+          string,
+          unknown
+        >;
         const jwtId = pickId(payload);
         if (jwtId) return jwtId;
         // Some JWTs wrap user data one level deep: { data: { id: "..." } }
@@ -954,15 +1119,15 @@ function defaultGetUserId(req: unknown): string | undefined {
  */
 function pickId(obj: Record<string, unknown>): string | undefined {
   const id =
-    (obj["id"]          as string | undefined) ??
-    (obj["sub"]         as string | undefined) ??  // JWT standard claim
-    (obj["userId"]      as string | undefined) ??
-    (obj["user_id"]     as string | undefined) ??
-    (obj["uid"]         as string | undefined) ??  // Firebase
-    (obj["_id"]         as string | undefined) ??  // MongoDB
-    (obj["accountId"]   as string | undefined) ??
-    (obj["account_id"]  as string | undefined) ??
-    (obj["customerId"]  as string | undefined) ??
+    (obj["id"] as string | undefined) ??
+    (obj["sub"] as string | undefined) ?? // JWT standard claim
+    (obj["userId"] as string | undefined) ??
+    (obj["user_id"] as string | undefined) ??
+    (obj["uid"] as string | undefined) ?? // Firebase
+    (obj["_id"] as string | undefined) ?? // MongoDB
+    (obj["accountId"] as string | undefined) ??
+    (obj["account_id"] as string | undefined) ??
+    (obj["customerId"] as string | undefined) ??
     (obj["customer_id"] as string | undefined);
   // Only return if it's a non-empty string (guards against null, 0, undefined)
   return typeof id === "string" && id.length > 0 ? id : undefined;
@@ -977,17 +1142,17 @@ function normalizeIp(raw: string): string {
 
 function isPrivateIp(ip: string): boolean {
   return (
-    ip === "127.0.0.1"          ||
-    ip === "::1"                ||
-    ip === "0.0.0.0"            ||
-    ip.startsWith("10.")        ||
-    ip.startsWith("192.168.")   ||
+    ip === "127.0.0.1" ||
+    ip === "::1" ||
+    ip === "0.0.0.0" ||
+    ip.startsWith("10.") ||
+    ip.startsWith("192.168.") ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
   );
 }
 
 function defaultGetIp(req: unknown): string {
-  const r   = req as Record<string, unknown>;
+  const r = req as Record<string, unknown>;
   const fwd = r["headers"] as Record<string, string | string[] | undefined> | undefined;
 
   // Pull the first non-empty value from a header (handles comma-lists like XFF)
@@ -1001,13 +1166,13 @@ function defaultGetIp(req: unknown): string {
   // Priority order: CDN/cloud-specific headers first (harder to spoof when behind
   // those services), then standard XFF, then socket fallback.
   const ip =
-    firstHdr("cf-connecting-ip")     ??   // Cloudflare
-    firstHdr("true-client-ip")       ??   // Cloudflare Enterprise / Akamai
-    firstHdr("x-forwarded-for")      ??   // Nginx, AWS ALB, GCP LB, most proxies
-    firstHdr("x-real-ip")            ??   // Nginx (single-IP alternative to XFF)
-    firstHdr("fastly-client-ip")     ??   // Fastly CDN
-    firstHdr("x-client-ip")          ??   // Generic reverse proxies
-    firstHdr("x-cluster-client-ip")  ??   // Cluster / k8s ingress
+    firstHdr("cf-connecting-ip") ?? // Cloudflare
+    firstHdr("true-client-ip") ?? // Cloudflare Enterprise / Akamai
+    firstHdr("x-forwarded-for") ?? // Nginx, AWS ALB, GCP LB, most proxies
+    firstHdr("x-real-ip") ?? // Nginx (single-IP alternative to XFF)
+    firstHdr("fastly-client-ip") ?? // Fastly CDN
+    firstHdr("x-client-ip") ?? // Generic reverse proxies
+    firstHdr("x-cluster-client-ip") ?? // Cluster / k8s ingress
     (r["socket"] as { remoteAddress?: string } | undefined)?.remoteAddress ??
     "0.0.0.0";
 
@@ -1049,20 +1214,20 @@ function isLoopbackIp(ip: string): boolean {
 
 function createExpressMiddleware(client: AnomiraClient) {
   let ipCheckCount = 0;
-  let ipLoopCount  = 0;
-  let ipWarnFired  = false;
+  let ipLoopCount = 0;
+  let ipWarnFired = false;
 
   let userIdCheckCount = 0;
-  let userIdMissCount  = 0;
-  let userIdWarnFired  = false;
+  let userIdMissCount = 0;
+  let userIdWarnFired = false;
 
   return async function sentinelMiddleware(
-    req:  Record<string, unknown>,
-    res:  Record<string, unknown>,
+    req: Record<string, unknown>,
+    res: Record<string, unknown>,
     next: () => void,
   ) {
     const startMs = Date.now();
-    const ip      = client.config.getIp(req);
+    const ip = client.config.getIp(req);
 
     // Warn once if the first 20 requests are consistently loopback — almost
     // always means the reverse proxy isn't forwarding X-Forwarded-For.
@@ -1073,13 +1238,13 @@ function createExpressMiddleware(client: AnomiraClient) {
         ipWarnFired = true;
         console.warn(
           "[Anomira] WARNING: client IP not captured on 80%+ of requests.\n" +
-          "  Your app is likely behind a reverse proxy (Nginx, Cloudflare, AWS ALB)\n" +
-          "  that is not forwarding client IP headers. Alerts will have no IP attribution.\n\n" +
-          "  Nginx fix:   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n" +
-          "               proxy_set_header X-Real-IP         $remote_addr;\n" +
-          "  Express fix: app.set('trust proxy', 1);\n" +
-          "  Fastify fix: Fastify({ trustProxy: true })\n" +
-          "  Docs:        https://docs.anomira.io/sdk/ip-capture"
+            "  Your app is likely behind a reverse proxy (Nginx, Cloudflare, AWS ALB)\n" +
+            "  that is not forwarding client IP headers. Alerts will have no IP attribution.\n\n" +
+            "  Nginx fix:   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n" +
+            "               proxy_set_header X-Real-IP         $remote_addr;\n" +
+            "  Express fix: app.set('trust proxy', 1);\n" +
+            "  Fastify fix: Fastify({ trustProxy: true })\n" +
+            "  Docs:        https://docs.anomira.io/sdk/ip-capture",
         );
       }
     }
@@ -1087,8 +1252,10 @@ function createExpressMiddleware(client: AnomiraClient) {
     // ── Block check — synchronous, zero latency ──
     if (client.isBlocked(ip)) {
       const method_ = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
-      const url_    = (req["originalUrl"] as string | undefined) ?? (req["url"] as string | undefined) ?? "/";
-      const ua_     = (req["headers"] as Record<string, string | undefined> | undefined)?.["user-agent"] ?? "";
+      const url_ =
+        (req["originalUrl"] as string | undefined) ?? (req["url"] as string | undefined) ?? "/";
+      const ua_ =
+        (req["headers"] as Record<string, string | undefined> | undefined)?.["user-agent"] ?? "";
       const reason_ = client.blockReason(ip);
       client.reportBlockedHit(ip, { method: method_, url: url_, userAgent: ua_ });
 
@@ -1097,11 +1264,11 @@ function createExpressMiddleware(client: AnomiraClient) {
         client.track("http.community_threat_blocked", {
           ip,
           meta: {
-            endpoint:  url_,
-            method:    method_,
-            score:     reason_.score,
+            endpoint: url_,
+            method: method_,
+            score: reason_.score,
             topAttack: reason_.topAttack,
-            source:    "anomira_network",
+            source: "anomira_network",
           },
         });
       }
@@ -1112,48 +1279,67 @@ function createExpressMiddleware(client: AnomiraClient) {
       } else {
         res_["statusCode"] = 403;
       }
-      if (typeof res_["end"] === "function") (res_["end"] as (b: string) => void)('{"error":"Forbidden"}');
+      if (typeof res_["end"] === "function")
+        (res_["end"] as (b: string) => void)('{"error":"Forbidden"}');
       return;
     }
 
-    const userId  = client.config.getUserId(req);
-    const method  = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
-    const url     = (req["originalUrl"] as string | undefined) ?? (req["url"] as string | undefined) ?? "/";
+    const userId = client.config.getUserId(req);
+    const method = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
+    const url =
+      (req["originalUrl"] as string | undefined) ?? (req["url"] as string | undefined) ?? "/";
 
-    const headers     = req["headers"] as Record<string, string | string[] | undefined> | undefined;
-    const headersStr  = headers as Record<string, string | undefined> | undefined;
-    const ua          = (typeof headers?.["user-agent"] === "string" ? headers["user-agent"] : "") ?? "";
-    const agentInfo   = detectAgent(headers ?? {});
+    const headers = req["headers"] as Record<string, string | string[] | undefined> | undefined;
+    const headersStr = headers as Record<string, string | undefined> | undefined;
+    const ua = (typeof headers?.["user-agent"] === "string" ? headers["user-agent"] : "") ?? "";
+    const agentInfo = detectAgent(headers ?? {});
     const fingerprint = computeBrowserFingerprint(headers ?? {}, ua);
-    const h2settings  = extractHttp2Settings(req);
+    const h2settings = extractHttp2Settings(req);
     const upstreamTls = extractUpstreamTls(headers ?? {});
 
     // ── Browser SDK payload ────────────────────────────────────────────────────
     // Cookie (anomira_fp) is the primary transport — survives Next.js rewrites,
     // reverse proxies, and any middleware that strips custom headers.
     // Header (X-Anomira-FP) is secondary — used when cookie is absent.
-    const cookieHeader  = headers?.["cookie"] as string | undefined;
-    const cookieToken   = cookieHeader
-      ? (cookieHeader.split(";").map((c) => c.trim()).find((c) => c.startsWith("anomira_fp="))?.slice("anomira_fp=".length) ?? "")
+    const cookieHeader = headers?.["cookie"] as string | undefined;
+    const cookieToken = cookieHeader
+      ? (cookieHeader
+          .split(";")
+          .map((c) => c.trim())
+          .find((c) => c.startsWith("anomira_fp="))
+          ?.slice("anomira_fp=".length) ?? "")
       : "";
-    const browserFpRaw  = cookieToken || (headers?.["x-anomira-fp"] as string | undefined) || "";
+    const browserFpRaw = cookieToken || (headers?.["x-anomira-fp"] as string | undefined) || "";
 
-    let browserFp: { fp: string; bot: number; sigs: string; uid?: string; pst?: boolean; ttf?: number; tts?: number } | null = null;
+    let browserFp: {
+      fp: string;
+      bot: number;
+      sigs: string;
+      uid?: string;
+      pst?: boolean;
+      ttf?: number;
+      tts?: number;
+    } | null = null;
     if (browserFpRaw) {
       try {
-        const raw = JSON.parse(Buffer.from(browserFpRaw, "base64").toString("utf8")) as Record<string, unknown>;
+        const raw = JSON.parse(Buffer.from(browserFpRaw, "base64").toString("utf8")) as Record<
+          string,
+          unknown
+        >;
         if (typeof raw["v"] === "number" && typeof raw["fp"] === "string") {
           browserFp = {
-            fp:   raw["fp"]  as string,
-            bot:  (raw["bot"] as number | undefined) ?? 0,
+            fp: raw["fp"] as string,
+            bot: (raw["bot"] as number | undefined) ?? 0,
             sigs: ((raw["sigs"] as string[] | undefined) ?? []).join(","),
-            uid:  typeof raw["uid"] === "string" && raw["uid"] ? raw["uid"] as string : undefined,
-            pst:  (raw["frm"] as { pst?: boolean } | undefined)?.pst,
-            ttf:  (raw["frm"] as { ttf?: number } | undefined)?.ttf,
-            tts:  (raw["frm"] as { tts?: number } | undefined)?.tts,
+            uid: typeof raw["uid"] === "string" && raw["uid"] ? (raw["uid"] as string) : undefined,
+            pst: (raw["frm"] as { pst?: boolean } | undefined)?.pst,
+            ttf: (raw["frm"] as { ttf?: number } | undefined)?.ttf,
+            tts: (raw["frm"] as { tts?: number } | undefined)?.tts,
           };
         }
-      } catch { /* malformed payload — ignore */ }
+      } catch {
+        /* malformed payload — ignore */
+      }
     }
 
     // ── Canary token detection ─────────────────────────────────────────────────
@@ -1162,14 +1348,21 @@ function createExpressMiddleware(client: AnomiraClient) {
     // this means the attacker obtained a credential from our honeypot and is
     // now using it against the real API.
     if (client["canaryTokenCache"] && (client["canaryTokenCache"] as Set<string>).size > 0) {
-      const authHeader = (typeof headers?.["authorization"] === "string" ? headers["authorization"] : "") ?? "";
+      const authHeader =
+        (typeof headers?.["authorization"] === "string" ? headers["authorization"] : "") ?? "";
       if (authHeader.startsWith("Bearer ")) {
         const bearerToken = authHeader.slice(7);
         // Check if the bearer token itself IS a canary token
         if ((client["canaryTokenCache"] as Set<string>).has(bearerToken)) {
           client.track("http.canary.triggered", {
-            ip, userId,
-            meta: { endpoint: url, method, token: bearerToken.slice(0, 16), source: "authorization_header" },
+            ip,
+            userId,
+            meta: {
+              endpoint: url,
+              method,
+              token: bearerToken.slice(0, 16),
+              source: "authorization_header",
+            },
           });
         }
         // Also decode JWT and check jti/kid against canary cache
@@ -1177,20 +1370,29 @@ function createExpressMiddleware(client: AnomiraClient) {
           const parts = bearerToken.split(".");
           if (parts.length === 3) {
             const b64h = (parts[0] ?? "").replace(/-/g, "+").replace(/_/g, "/");
-            const hdr  = JSON.parse(Buffer.from(b64h + "==", "base64").toString()) as Record<string, unknown>;
+            const hdr = JSON.parse(Buffer.from(b64h + "==", "base64").toString()) as Record<
+              string,
+              unknown
+            >;
             const b64p = (parts[1] ?? "").replace(/-/g, "+").replace(/_/g, "/");
-            const pay  = JSON.parse(Buffer.from(b64p + "==", "base64").toString()) as Record<string, unknown>;
-            const jti  = (pay["jti"] as string | undefined) ?? "";
+            const pay = JSON.parse(Buffer.from(b64p + "==", "base64").toString()) as Record<
+              string,
+              unknown
+            >;
+            const jti = (pay["jti"] as string | undefined) ?? "";
             // jti is the raw canary token hex (32 chars) — check directly against the cache
             const cache = client["canaryTokenCache"] as Set<string>;
             if (jti && cache.has(jti)) {
               client.track("http.canary.triggered", {
-                ip, userId,
+                ip,
+                userId,
                 meta: { endpoint: url, method, token: jti.slice(0, 16), source: "canary_jwt" },
               });
             }
           }
-        } catch { /* not a valid JWT */ }
+        } catch {
+          /* not a valid JWT */
+        }
       }
     }
 
@@ -1199,47 +1401,47 @@ function createExpressMiddleware(client: AnomiraClient) {
     // content INSTEAD of forwarding to the customer's route handlers.
     // This is done BEFORE next() so the customer's routes are never involved.
     const urlPath = url.split("?")[0]?.toLowerCase() ?? url.toLowerCase();
-    const isHoneypot = (client["honeypotPaths"] as Set<string>).size > 0 &&
-      [...(client["honeypotPaths"] as Set<string>)].some((hp) =>
-        urlPath === hp || urlPath.startsWith(hp + "/") || urlPath.startsWith(hp + ".")
+    const isHoneypot =
+      (client["honeypotPaths"] as Set<string>).size > 0 &&
+      [...(client["honeypotPaths"] as Set<string>)].some(
+        (hp) => urlPath === hp || urlPath.startsWith(hp + "/") || urlPath.startsWith(hp + "."),
       );
 
     if (isHoneypot) {
       const honeypotType = detectHoneypotType(url);
       const callbackBase = client.config.ingestUrl.replace(/\/v1\/events$/, "");
-      const orgId        = "";
+      const orgId = "";
 
       // ── POST to admin portal: capture credential attempt ───────────────────
       // When an attacker fills in the fake login form and submits, we capture
       // what credentials they tried as threat intel. Username is stored in full
       // (useful to know which accounts are targeted); password is length-only.
       if (method === "POST" && honeypotType === "admin_portal") {
-        const body_    = req["body"] as Record<string, unknown> | undefined;
+        const body_ = req["body"] as Record<string, unknown> | undefined;
         const username = String(
-          body_?.["username"] ?? body_?.["email"] ?? body_?.["user"] ?? body_?.["login"] ?? ""
+          body_?.["username"] ?? body_?.["email"] ?? body_?.["user"] ?? body_?.["login"] ?? "",
         );
         const password = String(
-          body_?.["password"] ?? body_?.["pass"] ?? body_?.["pwd"] ?? body_?.["passwd"] ?? ""
+          body_?.["password"] ?? body_?.["pass"] ?? body_?.["pwd"] ?? body_?.["passwd"] ?? "",
         );
 
         if (username || password) {
           // Length-only hint — avoid storing any password material
-          const passwordHint = password.length > 0
-            ? `[len=${password.length}]`
-            : "(empty)";
+          const passwordHint = password.length > 0 ? `[len=${password.length}]` : "(empty)";
 
           client.track("http.honeypot.credential_attempt", {
-            ip, userId,
+            ip,
+            userId,
             meta: {
-              endpoint:     url,
+              endpoint: url,
               method,
-              userAgent:    ua,
+              userAgent: ua,
               honeypotType,
               username,
               passwordHint,
               // Hidden _token field — if this is the canary token we issued
               // in the GET response, we know this is the same attacker session
-              formToken:    String(body_?.["_token"] ?? ""),
+              formToken: String(body_?.["_token"] ?? ""),
             },
           });
         }
@@ -1251,15 +1453,16 @@ function createExpressMiddleware(client: AnomiraClient) {
       }
 
       // ── GET or other method: serve the fake content ────────────────────────
-      const canaryToken  = randomBytes(16).toString("hex");
+      const canaryToken = randomBytes(16).toString("hex");
       const fakeResponse = generateHoneypotResponse(honeypotType, canaryToken, callbackBase, orgId);
 
       client.track("http.honeypot.hit", {
-        ip, userId,
+        ip,
+        userId,
         meta: {
-          endpoint:     url,
+          endpoint: url,
           method,
-          userAgent:    ua,
+          userAgent: ua,
           honeypotType,
           canaryToken,
           responseType: "enhanced",
@@ -1271,10 +1474,16 @@ function createExpressMiddleware(client: AnomiraClient) {
     }
 
     // ── Firewall rule evaluation ──
-    const fwMatch = client.matchFirewallRule({ url, body: req["body"], headers: headersStr ?? {}, ip });
+    const fwMatch = client.matchFirewallRule({
+      url,
+      body: req["body"],
+      headers: headersStr ?? {},
+      ip,
+    });
     if (fwMatch) {
       client.track("http.firewall." + fwMatch.rule.action, {
-        ip, userId,
+        ip,
+        userId,
         meta: { url, method, ruleId: fwMatch.rule.id, attackType: fwMatch.rule.attackType },
       });
       const res_ = res as Record<string, unknown>;
@@ -1286,21 +1495,32 @@ function createExpressMiddleware(client: AnomiraClient) {
         if (typeof res_["end"] === "function") (res_["end"] as (b: string) => void)(body);
       };
       const setHeader = (k: string, v: string) => {
-        if (typeof res_["setHeader"] === "function") (res_["setHeader"] as (k: string, v: string) => void)(k, v);
+        if (typeof res_["setHeader"] === "function")
+          (res_["setHeader"] as (k: string, v: string) => void)(k, v);
       };
       const action = fwMatch.rule.action;
       if (action === "block" || action === "temporary_block") {
-        setStatus(403); sendBody('{"error":"Blocked by firewall rule"}'); return;
+        setStatus(403);
+        sendBody('{"error":"Blocked by firewall rule"}');
+        return;
       }
       if (action === "rate_limit") {
-        setStatus(429); setHeader("Retry-After", "60"); sendBody('{"error":"Rate limit exceeded","retryAfter":60}'); return;
+        setStatus(429);
+        setHeader("Retry-After", "60");
+        sendBody('{"error":"Rate limit exceeded","retryAfter":60}');
+        return;
       }
       if (action === "redirect_honeypot") {
         const target = fwMatch.rule.redirectTarget ?? "/.env";
-        setStatus(302); setHeader("Location", target); sendBody(""); return;
+        setStatus(302);
+        setHeader("Location", target);
+        sendBody("");
+        return;
       }
       if (action === "challenge") {
-        setStatus(403); sendBody('{"error":"Request challenge required"}'); return;
+        setStatus(403);
+        sendBody('{"error":"Request challenge required"}');
+        return;
       }
       // tag | monitor | flag → allow through, already tracked above
     }
@@ -1322,12 +1542,19 @@ function createExpressMiddleware(client: AnomiraClient) {
     // webhook, src, etc.) to minimise false positives.
     if (client.config.detect.ssrf) {
       const query = (req["query"] as Record<string, string | string[] | undefined>) ?? {};
-      const body  = (req["body"] as unknown) ?? {};
+      const body = (req["body"] as unknown) ?? {};
       const signal = scanForSsrf(body, query);
       if (signal) {
         client.track(EventName.SSRF_ATTEMPT, {
-          ip, userId,
-          meta: { url, method, ssrfPayload: signal.payload, ssrfField: signal.field, ssrfReason: signal.reason },
+          ip,
+          userId,
+          meta: {
+            url,
+            method,
+            ssrfPayload: signal.payload,
+            ssrfField: signal.field,
+            ssrfReason: signal.reason,
+          },
         });
       }
     }
@@ -1335,13 +1562,20 @@ function createExpressMiddleware(client: AnomiraClient) {
     // ── Detect JWT header manipulation ──
     if (client.config.detect.jwtManipulation) {
       const reqHeaders = (headers ?? {}) as Record<string, string | string[] | undefined>;
-      const reqBody    = (req["body"] as unknown) ?? {};
-      const reqQuery   = (req["query"] as Record<string, string | string[] | undefined>) ?? {};
-      const jwtResult  = scanRequestForJwtAttacks(reqHeaders, reqBody, reqQuery);
+      const reqBody = (req["body"] as unknown) ?? {};
+      const reqQuery = (req["query"] as Record<string, string | string[] | undefined>) ?? {};
+      const jwtResult = scanRequestForJwtAttacks(reqHeaders, reqBody, reqQuery);
       if (jwtResult?.detected) {
         client.track(EventName.JWT_MANIPULATION, {
-          ip, userId,
-          meta: { url, method, jwtAttack: jwtResult.attack, jwtAlg: jwtResult.alg, jwtDetail: jwtResult.detail },
+          ip,
+          userId,
+          meta: {
+            url,
+            method,
+            jwtAttack: jwtResult.attack,
+            jwtAlg: jwtResult.alg,
+            jwtDetail: jwtResult.detail,
+          },
         });
       }
     }
@@ -1364,43 +1598,51 @@ function createExpressMiddleware(client: AnomiraClient) {
           userIdWarnFired = true;
           console.warn(
             "[Anomira] WARNING: userId not captured on 90%+ of requests.\n" +
-            "  EWS Evidence Package, geo-velocity, and account takeover detection\n" +
-            "  silently stop working without it. The SDK tried 5 auto-detection tiers\n" +
-            "  (Passport / express-jwt, req.auth, direct req.userId, session, JWT Bearer)\n" +
-            "  — none matched your auth setup.\n\n" +
-            "  Fix: pass a getUserId resolver that matches your auth middleware:\n" +
-            "  new Anomira({ ..., getUserId: (req) => req.user?.id })"
+              "  EWS Evidence Package, geo-velocity, and account takeover detection\n" +
+              "  silently stop working without it. The SDK tried 5 auto-detection tiers\n" +
+              "  (Passport / express-jwt, req.auth, direct req.userId, session, JWT Bearer)\n" +
+              "  — none matched your auth setup.\n\n" +
+              "  Fix: pass a getUserId resolver that matches your auth middleware:\n" +
+              "  new Anomira({ ..., getUserId: (req) => req.user?.id })",
           );
         }
       }
 
-      const status    = (res["statusCode"] as number | undefined) ?? 0;
+      const status = (res["statusCode"] as number | undefined) ?? 0;
       const latencyMs = Date.now() - startMs;
       const getHeader = (res as Record<string, unknown>)["getHeader"];
-      const bytes = typeof getHeader === "function"
-        ? parseInt((getHeader as (h: string) => string | undefined).call(res, "content-length") ?? "0", 10) || 0
-        : 0;
+      const bytes =
+        typeof getHeader === "function"
+          ? parseInt(
+              (getHeader as (h: string) => string | undefined).call(res, "content-length") ?? "0",
+              10,
+            ) || 0
+          : 0;
 
       // ── PII / sensitive-data detection ────────────────────────────────────
       // Runs after response is sent — zero latency impact on the client.
       // Layer 1: field name matching  (O(keys) lookup against pre-built Map)
       // Layer 2: value regex matching (only string values ≤ 200 chars)
       const rawBody = req["body"];
-      const piiFields:     string[] = [];
-      const piiPatterns:   string[] = [];
-      const piiCatSet      = new Set<string>();
+      const piiFields: string[] = [];
+      const piiPatterns: string[] = [];
+      const piiCatSet = new Set<string>();
 
       if (rawBody != null && typeof rawBody === "object" && !Array.isArray(rawBody)) {
         const body = rawBody as Record<string, unknown>;
         for (const key of Object.keys(body)) {
           const cat = FIELD_CATEGORY_MAP.get(key.toLowerCase());
-          if (cat) { piiFields.push(key.toLowerCase()); piiCatSet.add(cat); }
+          if (cat) {
+            piiFields.push(key.toLowerCase());
+            piiCatSet.add(cat);
+          }
         }
         for (const val of Object.values(body)) {
           if (typeof val !== "string" || val.length > 200) continue;
           for (const { name, category, re } of VALUE_PATTERNS) {
             if (!piiPatterns.includes(name) && re.test(val)) {
-              piiPatterns.push(name); piiCatSet.add(category);
+              piiPatterns.push(name);
+              piiCatSet.add(category);
             }
           }
         }
@@ -1408,75 +1650,104 @@ function createExpressMiddleware(client: AnomiraClient) {
       const piiCategories = piiCatSet.size > 0 ? [...piiCatSet] : undefined;
 
       client.track(EventName.REQUEST, {
-        ip, userId: lateUserId,
+        ip,
+        userId: lateUserId,
         meta: {
-          method, endpoint: url, status, latencyMs, userAgent: ua, bytes,
-          ...(piiFields.length > 0     ? { piiFields }     : {}),
-          ...(piiPatterns.length > 0   ? { piiPatterns }   : {}),
-          ...(piiCategories            ? { piiCategories } : {}),
-          _fp:    fingerprint.score,
+          method,
+          endpoint: url,
+          status,
+          latencyMs,
+          userAgent: ua,
+          bytes,
+          ...(piiFields.length > 0 ? { piiFields } : {}),
+          ...(piiPatterns.length > 0 ? { piiPatterns } : {}),
+          ...(piiCategories ? { piiCategories } : {}),
+          _fp: fingerprint.score,
           _fpSig: fingerprint.signals.join(","),
           ...(fingerprint.knownClient ? { _fpClient: fingerprint.knownClient } : {}),
-          ...(browserFp ? {
-            _bfp:   browserFp.fp,
-            _bbot:  browserFp.bot,
-            _bsigs: browserFp.sigs,
-            ...(browserFp.pst !== undefined ? { _bpaste: browserFp.pst } : {}),
-            ...(browserFp.ttf !== undefined && browserFp.ttf >= 0 ? { _bttf: browserFp.ttf } : {}),
-            ...(browserFp.tts !== undefined && browserFp.tts >= 0 ? { _btts: browserFp.tts } : {}),
-          } : {}),
-          ...(h2settings ? {
-            _h2Window:     h2settings.initialWindowSize,
-            _h2HdrTable:   h2settings.headerTableSize,
-            _h2Score:      h2settings.score,
-            _h2Signals:    h2settings.signals.join(","),
-          } : {}),
+          ...(browserFp
+            ? {
+                _bfp: browserFp.fp,
+                _bbot: browserFp.bot,
+                _bsigs: browserFp.sigs,
+                ...(browserFp.pst !== undefined ? { _bpaste: browserFp.pst } : {}),
+                ...(browserFp.ttf !== undefined && browserFp.ttf >= 0
+                  ? { _bttf: browserFp.ttf }
+                  : {}),
+                ...(browserFp.tts !== undefined && browserFp.tts >= 0
+                  ? { _btts: browserFp.tts }
+                  : {}),
+              }
+            : {}),
+          ...(h2settings
+            ? {
+                _h2Window: h2settings.initialWindowSize,
+                _h2HdrTable: h2settings.headerTableSize,
+                _h2Score: h2settings.score,
+                _h2Signals: h2settings.signals.join(","),
+              }
+            : {}),
           ...(upstreamTls.ja3 ? { _ja3: upstreamTls.ja3 } : {}),
           ...(upstreamTls.ja4 ? { _ja4: upstreamTls.ja4 } : {}),
-          ...(agentInfo.isAgent ? {
-            agentDetected:   true,
-            agentType:       agentInfo.agentType,
-            agentName:       agentInfo.agentName,
-            agentConfidence: agentInfo.confidence,
-            mcpSessionId:    agentInfo.sessionId,
-            isMcp:           agentInfo.isMcp,
-            agentSignals:    agentInfo.signals.join(","),
-          } : {}),
+          ...(agentInfo.isAgent
+            ? {
+                agentDetected: true,
+                agentType: agentInfo.agentType,
+                agentName: agentInfo.agentName,
+                agentConfidence: agentInfo.confidence,
+                mcpSessionId: agentInfo.sessionId,
+                isMcp: agentInfo.isMcp,
+                agentSignals: agentInfo.signals.join(","),
+              }
+            : {}),
         },
       });
 
       if (agentInfo.isAgent) {
         client.track("http.agent_detected", {
-          ip, userId: lateUserId,
+          ip,
+          userId: lateUserId,
           meta: {
-            endpoint:        url,
+            endpoint: url,
             method,
-            agentType:       agentInfo.agentType,
-            agentName:       agentInfo.agentName,
+            agentType: agentInfo.agentType,
+            agentName: agentInfo.agentName,
             agentConfidence: agentInfo.confidence,
-            mcpSessionId:    agentInfo.sessionId,
-            isMcp:           agentInfo.isMcp,
-            agentSignals:    agentInfo.signals.join(","),
+            mcpSessionId: agentInfo.sessionId,
+            isMcp: agentInfo.isMcp,
+            agentSignals: agentInfo.signals.join(","),
             status,
-            userAgent:       ua,
+            userAgent: ua,
           },
         });
       }
 
       if (client.config.detect.rateAbuse && status === 429) {
-        client.track(EventName.RATE_LIMIT, { ip, userId: lateUserId, meta: { url, method, statusCode: status } });
+        client.track(EventName.RATE_LIMIT, {
+          ip,
+          userId: lateUserId,
+          meta: { url, method, statusCode: status },
+        });
       }
 
       if (client.config.detect.bruteForce && status === 401) {
         if (/\/(login|signin|auth|token|session)/i.test(url)) {
-          client.track(EventName.LOGIN_FAILED, { ip, userId: lateUserId, meta: { url, method, statusCode: status } });
+          client.track(EventName.LOGIN_FAILED, {
+            ip,
+            userId: lateUserId,
+            meta: { url, method, statusCode: status },
+          });
         }
       }
 
       if (client.config.detect.scanDetection && status === 404) {
         const looksLikeScanner = !ua || /curl|wget|python|go-http|nuclei|sqlmap|nikto/i.test(ua);
         if (looksLikeScanner) {
-          client.track(EventName.SCAN_DETECTED, { ip, userId: lateUserId, meta: { url, method, userAgent: ua } });
+          client.track(EventName.SCAN_DETECTED, {
+            ip,
+            userId: lateUserId,
+            meta: { url, method, userAgent: ua },
+          });
         }
       }
 
@@ -1496,23 +1767,21 @@ function createExpressMiddleware(client: AnomiraClient) {
 
 function createFastifyPlugin(client: AnomiraClient) {
   let ipCheckCount = 0;
-  let ipLoopCount  = 0;
-  let ipWarnFired  = false;
+  let ipLoopCount = 0;
+  let ipWarnFired = false;
 
   let userIdCheckCount = 0;
-  let userIdMissCount  = 0;
-  let userIdWarnFired  = false;
+  let userIdMissCount = 0;
+  let userIdWarnFired = false;
 
-  return async function sentinelFastifyPlugin(
-    fastify: {
-      addHook: (
-        event: string,
-        fn: (req: Record<string, unknown>, reply: Record<string, unknown>) => void,
-      ) => void;
-    },
-  ) {
+  return async function sentinelFastifyPlugin(fastify: {
+    addHook: (
+      event: string,
+      fn: (req: Record<string, unknown>, reply: Record<string, unknown>) => void,
+    ) => void;
+  }) {
     fastify.addHook("onRequest", (req, reply) => {
-      const ip      = client.config.getIp(req);
+      const ip = client.config.getIp(req);
 
       if (!ipWarnFired && ipCheckCount < 20) {
         ipCheckCount++;
@@ -1521,33 +1790,38 @@ function createFastifyPlugin(client: AnomiraClient) {
           ipWarnFired = true;
           console.warn(
             "[Anomira] WARNING: client IP not captured on 80%+ of requests.\n" +
-            "  Your app is likely behind a reverse proxy (Nginx, Cloudflare, AWS ALB)\n" +
-            "  that is not forwarding client IP headers. Alerts will have no IP attribution.\n\n" +
-            "  Nginx fix:   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n" +
-            "               proxy_set_header X-Real-IP         $remote_addr;\n" +
-            "  Fastify fix: Fastify({ trustProxy: true })\n" +
-            "  Docs:        https://docs.anomira.io/sdk/ip-capture"
+              "  Your app is likely behind a reverse proxy (Nginx, Cloudflare, AWS ALB)\n" +
+              "  that is not forwarding client IP headers. Alerts will have no IP attribution.\n\n" +
+              "  Nginx fix:   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n" +
+              "               proxy_set_header X-Real-IP         $remote_addr;\n" +
+              "  Fastify fix: Fastify({ trustProxy: true })\n" +
+              "  Docs:        https://docs.anomira.io/sdk/ip-capture",
           );
         }
       }
-      const url_    = (req["url"]    as string | undefined) ?? "/";
+      const url_ = (req["url"] as string | undefined) ?? "/";
       const method_ = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
-      const hdrs_   = (req as Record<string, unknown>)["headers"] as Record<string, string | undefined> | undefined;
+      const hdrs_ = (req as Record<string, unknown>)["headers"] as
+        Record<string, string | undefined> | undefined;
 
       // ── Block check — synchronous, zero latency ──
       if (client.isBlocked(ip)) {
         const reason_ = client.blockReason(ip);
-        client.reportBlockedHit(ip, { method: method_, url: url_, userAgent: hdrs_?.["user-agent"] ?? "" });
+        client.reportBlockedHit(ip, {
+          method: method_,
+          url: url_,
+          userAgent: hdrs_?.["user-agent"] ?? "",
+        });
 
         if (reason_?.source === "community") {
           client.track("http.community_threat_blocked", {
             ip,
             meta: {
-              endpoint:  url_,
-              method:    method_,
-              score:     reason_.score,
+              endpoint: url_,
+              method: method_,
+              score: reason_.score,
               topAttack: reason_.topAttack,
-              source:    "anomira_network",
+              source: "anomira_network",
             },
           });
         }
@@ -1562,7 +1836,7 @@ function createFastifyPlugin(client: AnomiraClient) {
         return;
       }
 
-      const url    = (req["url"] as string | undefined) ?? "/";
+      const url = (req["url"] as string | undefined) ?? "/";
       const method = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
       const userId = client.config.getUserId(req);
 
@@ -1572,17 +1846,24 @@ function createFastifyPlugin(client: AnomiraClient) {
     });
 
     fastify.addHook("preHandler", (req, reply) => {
-      const ip      = client.config.getIp(req);
-      const url     = (req["url"] as string | undefined) ?? "/";
-      const method  = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
-      const userId  = client.config.getUserId(req);
-      const headers = (req as Record<string, unknown>)["headers"] as Record<string, string | undefined> | undefined;
+      const ip = client.config.getIp(req);
+      const url = (req["url"] as string | undefined) ?? "/";
+      const method = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
+      const userId = client.config.getUserId(req);
+      const headers = (req as Record<string, unknown>)["headers"] as
+        Record<string, string | undefined> | undefined;
 
       // ── Firewall rule evaluation ──
-      const fwMatch = client.matchFirewallRule({ url, body: (req as Record<string, unknown>)["body"], headers: headers ?? {}, ip });
+      const fwMatch = client.matchFirewallRule({
+        url,
+        body: (req as Record<string, unknown>)["body"],
+        headers: headers ?? {},
+        ip,
+      });
       if (fwMatch) {
         client.track("http.firewall." + fwMatch.rule.action, {
-          ip, userId,
+          ip,
+          userId,
           meta: { url, method, ruleId: fwMatch.rule.id, attackType: fwMatch.rule.attackType },
         });
         const rep = reply as Record<string, unknown>;
@@ -1591,26 +1872,32 @@ function createFastifyPlugin(client: AnomiraClient) {
             ? (rep["code"] as (c: number) => Record<string, unknown>)(code)
             : rep;
         const replyHeader = (k: string, v: string) => {
-          if (typeof rep["header"] === "function") (rep["header"] as (k: string, v: string) => unknown)(k, v);
+          if (typeof rep["header"] === "function")
+            (rep["header"] as (k: string, v: string) => unknown)(k, v);
         };
         const replySend = (chained: Record<string, unknown>, body: unknown) => {
-          if (chained && typeof chained["send"] === "function") (chained["send"] as (b: unknown) => void)(body);
+          if (chained && typeof chained["send"] === "function")
+            (chained["send"] as (b: unknown) => void)(body);
         };
         const action = fwMatch.rule.action;
         if (action === "block" || action === "temporary_block") {
-          replySend(replyCode(403), { error: "Blocked by firewall rule" }); return;
+          replySend(replyCode(403), { error: "Blocked by firewall rule" });
+          return;
         }
         if (action === "rate_limit") {
           replyHeader("Retry-After", "60");
-          replySend(replyCode(429), { error: "Rate limit exceeded", retryAfter: 60 }); return;
+          replySend(replyCode(429), { error: "Rate limit exceeded", retryAfter: 60 });
+          return;
         }
         if (action === "redirect_honeypot") {
           const target = fwMatch.rule.redirectTarget ?? "/.env";
           replyHeader("Location", target);
-          replySend(replyCode(302), ""); return;
+          replySend(replyCode(302), "");
+          return;
         }
         if (action === "challenge") {
-          replySend(replyCode(403), { error: "Request challenge required" }); return;
+          replySend(replyCode(403), { error: "Request challenge required" });
+          return;
         }
         // tag | monitor | flag → allow through, already tracked above
       }
@@ -1622,39 +1909,65 @@ function createFastifyPlugin(client: AnomiraClient) {
       }
 
       if (client.config.detect.ssrf) {
-        const query  = ((req as Record<string, unknown>)["query"]  as Record<string, string | string[] | undefined>) ?? {};
-        const body   = ((req as Record<string, unknown>)["body"])  as unknown ?? {};
+        const query =
+          ((req as Record<string, unknown>)["query"] as Record<
+            string,
+            string | string[] | undefined
+          >) ?? {};
+        const body = ((req as Record<string, unknown>)["body"] as unknown) ?? {};
         const signal = scanForSsrf(body, query);
         if (signal) {
           client.track(EventName.SSRF_ATTEMPT, {
-            ip, userId,
-            meta: { url, method, ssrfPayload: signal.payload, ssrfField: signal.field, ssrfReason: signal.reason },
+            ip,
+            userId,
+            meta: {
+              url,
+              method,
+              ssrfPayload: signal.payload,
+              ssrfField: signal.field,
+              ssrfReason: signal.reason,
+            },
           });
         }
       }
 
       if (client.config.detect.jwtManipulation) {
-        const fHeaders = (req as Record<string, unknown>)["headers"] as Record<string, string | string[] | undefined> ?? {};
-        const fBody    = ((req as Record<string, unknown>)["body"]) as unknown ?? {};
-        const fQuery   = ((req as Record<string, unknown>)["query"]) as Record<string, string | string[] | undefined> ?? {};
-        const jwtRes   = scanRequestForJwtAttacks(fHeaders, fBody, fQuery);
+        const fHeaders =
+          ((req as Record<string, unknown>)["headers"] as Record<
+            string,
+            string | string[] | undefined
+          >) ?? {};
+        const fBody = ((req as Record<string, unknown>)["body"] as unknown) ?? {};
+        const fQuery =
+          ((req as Record<string, unknown>)["query"] as Record<
+            string,
+            string | string[] | undefined
+          >) ?? {};
+        const jwtRes = scanRequestForJwtAttacks(fHeaders, fBody, fQuery);
         if (jwtRes?.detected) {
           client.track(EventName.JWT_MANIPULATION, {
-            ip, userId,
-            meta: { url, method, jwtAttack: jwtRes.attack, jwtAlg: jwtRes.alg, jwtDetail: jwtRes.detail },
+            ip,
+            userId,
+            meta: {
+              url,
+              method,
+              jwtAttack: jwtRes.attack,
+              jwtAlg: jwtRes.alg,
+              jwtDetail: jwtRes.detail,
+            },
           });
         }
       }
     });
 
     fastify.addHook("onResponse", (req, reply) => {
-      const ip      = client.config.getIp(req);
-      const url     = (req["url"] as string | undefined) ?? "/";
-      const method  = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
+      const ip = client.config.getIp(req);
+      const url = (req["url"] as string | undefined) ?? "/";
+      const method = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
       // onResponse fires after all hooks — auth has run, req.user is populated.
       // userId fallback applied after browser FP is parsed below.
       const serverUserId = client.config.getUserId(req);
-      const status  = (reply["statusCode"] as number | undefined) ?? 0;
+      const status = (reply["statusCode"] as number | undefined) ?? 0;
 
       // Warn once if userId is still missing after the full request cycle.
       if (!userIdWarnFired && userIdCheckCount < 20) {
@@ -1664,46 +1977,66 @@ function createFastifyPlugin(client: AnomiraClient) {
           userIdWarnFired = true;
           console.warn(
             "[Anomira] WARNING: userId not captured on 90%+ of requests.\n" +
-            "  EWS Evidence Package, geo-velocity, and account takeover detection\n" +
-            "  silently stop working without it. The SDK tried 5 auto-detection tiers\n" +
-            "  (Passport / @fastify/jwt, req.auth, direct req.userId, session, JWT Bearer)\n" +
-            "  — none matched your auth setup.\n\n" +
-            "  Fix: pass a getUserId resolver that matches your auth middleware:\n" +
-            "  new Anomira({ ..., getUserId: (req) => (req as any).user?.id })"
+              "  EWS Evidence Package, geo-velocity, and account takeover detection\n" +
+              "  silently stop working without it. The SDK tried 5 auto-detection tiers\n" +
+              "  (Passport / @fastify/jwt, req.auth, direct req.userId, session, JWT Bearer)\n" +
+              "  — none matched your auth setup.\n\n" +
+              "  Fix: pass a getUserId resolver that matches your auth middleware:\n" +
+              "  new Anomira({ ..., getUserId: (req) => (req as any).user?.id })",
           );
         }
       }
-      const headers     = (req as Record<string, unknown>)["headers"] as Record<string, string | string[] | undefined> | undefined;
-      const ua          = (typeof headers?.["user-agent"] === "string" ? headers["user-agent"] : "") ?? "";
-      const latencyMs   = (reply as Record<string, unknown>)["elapsedTime"] as number | undefined ?? 0;
-      const agentInfo   = detectAgent(headers ?? {});
+      const headers = (req as Record<string, unknown>)["headers"] as
+        Record<string, string | string[] | undefined> | undefined;
+      const ua = (typeof headers?.["user-agent"] === "string" ? headers["user-agent"] : "") ?? "";
+      const latencyMs =
+        ((reply as Record<string, unknown>)["elapsedTime"] as number | undefined) ?? 0;
+      const agentInfo = detectAgent(headers ?? {});
       const fingerprint = computeBrowserFingerprint(headers ?? {}, ua);
-      const h2settings  = extractHttp2Settings(req as Record<string, unknown>);
+      const h2settings = extractHttp2Settings(req as Record<string, unknown>);
       const upstreamTls = extractUpstreamTls(headers ?? {});
 
       // Browser SDK payload (Fastify) — cookie primary, header secondary
-      const cookieHdrF   = headers?.["cookie"] as string | undefined;
-      const cookieTokF   = cookieHdrF
-        ? (cookieHdrF.split(";").map((c) => c.trim()).find((c) => c.startsWith("anomira_fp="))?.slice("anomira_fp=".length) ?? "")
+      const cookieHdrF = headers?.["cookie"] as string | undefined;
+      const cookieTokF = cookieHdrF
+        ? (cookieHdrF
+            .split(";")
+            .map((c) => c.trim())
+            .find((c) => c.startsWith("anomira_fp="))
+            ?.slice("anomira_fp=".length) ?? "")
         : "";
-      const bfpRawF      = cookieTokF || (headers?.["x-anomira-fp"] as string | undefined) || "";
+      const bfpRawF = cookieTokF || (headers?.["x-anomira-fp"] as string | undefined) || "";
 
-      let browserFpF: { fp: string; bot: number; sigs: string; uid?: string; pst?: boolean; ttf?: number; tts?: number } | null = null;
+      let browserFpF: {
+        fp: string;
+        bot: number;
+        sigs: string;
+        uid?: string;
+        pst?: boolean;
+        ttf?: number;
+        tts?: number;
+      } | null = null;
       if (bfpRawF) {
         try {
-          const raw = JSON.parse(Buffer.from(bfpRawF, "base64").toString("utf8")) as Record<string, unknown>;
+          const raw = JSON.parse(Buffer.from(bfpRawF, "base64").toString("utf8")) as Record<
+            string,
+            unknown
+          >;
           if (typeof raw["v"] === "number" && typeof raw["fp"] === "string") {
             browserFpF = {
-              fp:   raw["fp"]  as string,
-              bot:  (raw["bot"] as number | undefined) ?? 0,
+              fp: raw["fp"] as string,
+              bot: (raw["bot"] as number | undefined) ?? 0,
               sigs: ((raw["sigs"] as string[] | undefined) ?? []).join(","),
-              uid:  typeof raw["uid"] === "string" && raw["uid"] ? raw["uid"] as string : undefined,
-              pst:  (raw["frm"] as { pst?: boolean } | undefined)?.pst,
-              ttf:  (raw["frm"] as { ttf?: number } | undefined)?.ttf,
-              tts:  (raw["frm"] as { tts?: number } | undefined)?.tts,
+              uid:
+                typeof raw["uid"] === "string" && raw["uid"] ? (raw["uid"] as string) : undefined,
+              pst: (raw["frm"] as { pst?: boolean } | undefined)?.pst,
+              ttf: (raw["frm"] as { ttf?: number } | undefined)?.ttf,
+              tts: (raw["frm"] as { tts?: number } | undefined)?.tts,
             };
           }
-        } catch { /* malformed — ignore */ }
+        } catch {
+          /* malformed — ignore */
+        }
       }
 
       // Apply browser SDK uid fallback now that browserFpF is parsed
@@ -1711,73 +2044,110 @@ function createFastifyPlugin(client: AnomiraClient) {
 
       // Always emit HTTP access log entry for the Events dashboard.
       client.track(EventName.REQUEST, {
-        ip, userId,
+        ip,
+        userId,
         meta: {
-          method, endpoint: url, status, latencyMs: Math.round(latencyMs), userAgent: ua, bytes: 0,
-          _fp:    fingerprint.score,
+          method,
+          endpoint: url,
+          status,
+          latencyMs: Math.round(latencyMs),
+          userAgent: ua,
+          bytes: 0,
+          _fp: fingerprint.score,
           _fpSig: fingerprint.signals.join(","),
           ...(fingerprint.knownClient ? { _fpClient: fingerprint.knownClient } : {}),
-          ...(browserFpF ? {
-            _bfp:   browserFpF.fp,
-            _bbot:  browserFpF.bot,
-            _bsigs: browserFpF.sigs,
-            ...(browserFpF.pst !== undefined ? { _bpaste: browserFpF.pst } : {}),
-            ...(browserFpF.ttf !== undefined && browserFpF.ttf >= 0 ? { _bttf: browserFpF.ttf } : {}),
-            ...(browserFpF.tts !== undefined && browserFpF.tts >= 0 ? { _btts: browserFpF.tts } : {}),
-          } : {}),
-          ...(h2settings ? {
-            _h2Window:  h2settings.initialWindowSize,
-            _h2HdrTable: h2settings.headerTableSize,
-            _h2Score:   h2settings.score,
-            _h2Signals: h2settings.signals.join(","),
-          } : {}),
+          ...(browserFpF
+            ? {
+                _bfp: browserFpF.fp,
+                _bbot: browserFpF.bot,
+                _bsigs: browserFpF.sigs,
+                ...(browserFpF.pst !== undefined ? { _bpaste: browserFpF.pst } : {}),
+                ...(browserFpF.ttf !== undefined && browserFpF.ttf >= 0
+                  ? { _bttf: browserFpF.ttf }
+                  : {}),
+                ...(browserFpF.tts !== undefined && browserFpF.tts >= 0
+                  ? { _btts: browserFpF.tts }
+                  : {}),
+              }
+            : {}),
+          ...(h2settings
+            ? {
+                _h2Window: h2settings.initialWindowSize,
+                _h2HdrTable: h2settings.headerTableSize,
+                _h2Score: h2settings.score,
+                _h2Signals: h2settings.signals.join(","),
+              }
+            : {}),
           ...(upstreamTls.ja3 ? { _ja3: upstreamTls.ja3 } : {}),
           ...(upstreamTls.ja4 ? { _ja4: upstreamTls.ja4 } : {}),
-          ...(agentInfo.isAgent ? {
-            agentDetected:   true,
-            agentType:       agentInfo.agentType,
-            agentName:       agentInfo.agentName,
-            agentConfidence: agentInfo.confidence,
-            mcpSessionId:    agentInfo.sessionId,
-            isMcp:           agentInfo.isMcp,
-            agentSignals:    agentInfo.signals.join(","),
-          } : {}),
+          ...(agentInfo.isAgent
+            ? {
+                agentDetected: true,
+                agentType: agentInfo.agentType,
+                agentName: agentInfo.agentName,
+                agentConfidence: agentInfo.confidence,
+                mcpSessionId: agentInfo.sessionId,
+                isMcp: agentInfo.isMcp,
+                agentSignals: agentInfo.signals.join(","),
+              }
+            : {}),
         },
       });
 
       if (agentInfo.isAgent) {
         client.track("http.agent_detected", {
-          ip, userId,
+          ip,
+          userId,
           meta: {
-            endpoint:        url,
+            endpoint: url,
             method,
-            agentType:       agentInfo.agentType,
-            agentName:       agentInfo.agentName,
+            agentType: agentInfo.agentType,
+            agentName: agentInfo.agentName,
             agentConfidence: agentInfo.confidence,
-            mcpSessionId:    agentInfo.sessionId,
-            isMcp:           agentInfo.isMcp,
-            agentSignals:    agentInfo.signals.join(","),
+            mcpSessionId: agentInfo.sessionId,
+            isMcp: agentInfo.isMcp,
+            agentSignals: agentInfo.signals.join(","),
             status,
-            userAgent:       ua,
+            userAgent: ua,
           },
         });
       }
 
       if (client.config.detect.rateAbuse && status === 429) {
-        client.track(EventName.RATE_LIMIT, { ip, userId, meta: { url, method, statusCode: status } });
+        client.track(EventName.RATE_LIMIT, {
+          ip,
+          userId,
+          meta: { url, method, statusCode: status },
+        });
       }
 
-      if (client.config.detect.bruteForce && status === 401 && /\/(login|signin|auth|token)/i.test(url)) {
-        client.track(EventName.LOGIN_FAILED, { ip, userId, meta: { url, method, statusCode: status } });
+      if (
+        client.config.detect.bruteForce &&
+        status === 401 &&
+        /\/(login|signin|auth|token)/i.test(url)
+      ) {
+        client.track(EventName.LOGIN_FAILED, {
+          ip,
+          userId,
+          meta: { url, method, statusCode: status },
+        });
       }
 
       if (client.config.detect.scanDetection && status === 404) {
         if (!ua || /curl|wget|python|go-http|nuclei|sqlmap|nikto/i.test(ua)) {
-          client.track(EventName.SCAN_DETECTED, { ip, userId, meta: { url, method, userAgent: ua } });
+          client.track(EventName.SCAN_DETECTED, {
+            ip,
+            userId,
+            meta: { url, method, userAgent: ua },
+          });
         }
       }
 
-      if (client.config.detect.bruteForce && status === 200 && /\/(login|signin|auth|token)/i.test(url)) {
+      if (
+        client.config.detect.bruteForce &&
+        status === 200 &&
+        /\/(login|signin|auth|token)/i.test(url)
+      ) {
         if (userId) {
           void client.trackLogin({ ip, userId, meta: { url, method } });
         }

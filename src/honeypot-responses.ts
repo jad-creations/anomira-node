@@ -47,22 +47,22 @@ function escapeHtmlAttr(value: string): string {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type HoneypotType =
-  | "env_file"          // .env, .env.production, .env.local
-  | "aws_credentials"   // .aws/credentials
-  | "git_config"        // .git/config
-  | "graphql"           // /graphql with introspection
-  | "spring_actuator"   // /actuator/env (Spring Boot)
-  | "json_config"       // config.json, settings.json, secrets.json
-  | "htpasswd"          // .htpasswd — Apache password file with hashed credentials
-  | "s3_bucket"         // S3-style XML responses for bucket listing paths
-  | "admin_portal"      // HTML admin login form — captures credential attempts
-  | "generic";          // all other honeypot paths
+  | "env_file" // .env, .env.production, .env.local
+  | "aws_credentials" // .aws/credentials
+  | "git_config" // .git/config
+  | "graphql" // /graphql with introspection
+  | "spring_actuator" // /actuator/env (Spring Boot)
+  | "json_config" // config.json, settings.json, secrets.json
+  | "htpasswd" // .htpasswd — Apache password file with hashed credentials
+  | "s3_bucket" // S3-style XML responses for bucket listing paths
+  | "admin_portal" // HTML admin login form — captures credential attempts
+  | "generic"; // all other honeypot paths
 
 export interface HoneypotResponse {
-  statusCode:  number;
+  statusCode: number;
   contentType: string;
-  headers:     Record<string, string>;
-  body:        string;
+  headers: Record<string, string>;
+  body: string;
   canaryToken: string; // stored in ingest for subsequent detection
 }
 
@@ -75,18 +75,19 @@ export interface HoneypotResponse {
 export function detectHoneypotType(path: string): HoneypotType {
   const p = path.toLowerCase().split("?")[0] ?? path.toLowerCase();
 
-  if (/\/\.env(\.[\w]+)?$/.test(p) || p.endsWith("/.env"))        return "env_file";
+  if (/\/\.env(\.[\w]+)?$/.test(p) || p.endsWith("/.env")) return "env_file";
   if (p.includes(".aws/credentials") || p.includes("aws/credentials")) return "aws_credentials";
-  if (p.includes(".git/config") || p.endsWith("/git/config"))     return "git_config";
-  if (p.includes("/graphql") || p.includes("/graphiql"))          return "graphql";
-  if (p.includes("/actuator/env") || p.includes("/actuator/"))    return "spring_actuator";
-  if (/\/(config|settings|secrets?)(\.json)?$/.test(p))           return "json_config";
+  if (p.includes(".git/config") || p.endsWith("/git/config")) return "git_config";
+  if (p.includes("/graphql") || p.includes("/graphiql")) return "graphql";
+  if (p.includes("/actuator/env") || p.includes("/actuator/")) return "spring_actuator";
+  if (/\/(config|settings|secrets?)(\.json)?$/.test(p)) return "json_config";
   // .htpasswd — Apache password file
-  if (p.endsWith("/.htpasswd") || p.endsWith("/.htaccess"))       return "htpasswd";
+  if (p.endsWith("/.htpasswd") || p.endsWith("/.htaccess")) return "htpasswd";
   // S3 bucket listing paths
   if (p.includes("/.s3cfg") || p.endsWith("/s3") || p.includes("s3cfg")) return "s3_bucket";
   // Admin portals — match common admin paths
-  if (/\/(admin|wp-admin|administrator|panel|cpanel|dashboard|manage|backend)(\/|$)/.test(p)) return "admin_portal";
+  if (/\/(admin|wp-admin|administrator|panel|cpanel|dashboard|manage|backend)(\/|$)/.test(p))
+    return "admin_portal";
   return "generic";
 }
 
@@ -102,42 +103,52 @@ export function detectHoneypotType(path: string): HoneypotType {
  * @param orgId        Organisation ID — used in callback URLs and canary key generation
  */
 export function generateHoneypotResponse(
-  type:         HoneypotType,
-  canaryToken:  string,
+  type: HoneypotType,
+  canaryToken: string,
   callbackBase: string,
-  orgId:        string,
+  orgId: string,
 ): HoneypotResponse {
   switch (type) {
-    case "env_file":       return makeEnvFile(canaryToken, callbackBase, orgId);
-    case "aws_credentials": return makeAwsCredentials(canaryToken);
-    case "git_config":     return makeGitConfig(canaryToken, callbackBase, orgId);
-    case "graphql":        return makeGraphQL();
-    case "spring_actuator": return makeSpringActuator(canaryToken);
-    case "json_config":    return makeJsonConfig(canaryToken, callbackBase, orgId);
-    case "htpasswd":       return makeHtpasswd(canaryToken);
-    case "s3_bucket":      return makeS3Bucket(canaryToken);
-    case "admin_portal":   return makeAdminPortal(canaryToken);
-    default:               return makeGeneric(canaryToken);
+    case "env_file":
+      return makeEnvFile(canaryToken, callbackBase, orgId);
+    case "aws_credentials":
+      return makeAwsCredentials(canaryToken);
+    case "git_config":
+      return makeGitConfig(canaryToken, callbackBase, orgId);
+    case "graphql":
+      return makeGraphQL();
+    case "spring_actuator":
+      return makeSpringActuator(canaryToken);
+    case "json_config":
+      return makeJsonConfig(canaryToken, callbackBase, orgId);
+    case "htpasswd":
+      return makeHtpasswd(canaryToken);
+    case "s3_bucket":
+      return makeS3Bucket(canaryToken);
+    case "admin_portal":
+      return makeAdminPortal(canaryToken);
+    default:
+      return makeGeneric(canaryToken);
   }
 }
 
 // ─── .env file ────────────────────────────────────────────────────────────────
 
 function makeEnvFile(canaryToken: string, _callbackBase: string, _orgId: string): HoneypotResponse {
-  const jwtSecret     = genHex(32);
-  const dbPassword    = genAlphanumeric(20);
+  const jwtSecret = genHex(32);
+  const dbPassword = genAlphanumeric(20);
   const redisPassword = genAlphanumeric(16);
-  const apiKey        = genHex(32);
+  const apiKey = genHex(32);
 
   // DNS canary hostnames — fire detection the instant an attacker's tool
   // resolves the domain, before any TCP connection is attempted.
   // The DNS server at srv.anomira.io receives the query, extracts the canary
   // token from the subdomain, and fires the alert via our ingest API.
-  const dnsDb         = `db.${canaryToken}.srv.anomira.io`;
-  const dnsCache      = `cache.${canaryToken}.srv.anomira.io`;
+  const dnsDb = `db.${canaryToken}.srv.anomira.io`;
+  const dnsCache = `cache.${canaryToken}.srv.anomira.io`;
   const dnsMonitoring = `hooks.monitoring.${canaryToken}.srv.anomira.io`;
-  const dnsAlerts     = `hooks.alerts.${canaryToken}.srv.anomira.io`;
-  const dnsDeploy     = `deploy.internal.${canaryToken}.srv.anomira.io`;
+  const dnsAlerts = `hooks.alerts.${canaryToken}.srv.anomira.io`;
+  const dnsDeploy = `deploy.internal.${canaryToken}.srv.anomira.io`;
 
   // JWT token: valid format, expired 24h ago. Detection is via jti claim.
   const fakeJwt = generateCanaryJwt(canaryToken, jwtSecret);
@@ -180,14 +191,14 @@ INTERNAL_API_KEY=${apiKey}
 `;
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "text/plain; charset=utf-8",
     headers: {
-      "Cache-Control":       "no-store",
-      "Last-Modified":       new Date(Date.now() - 7 * 86400000).toUTCString(),
-      "ETag":                `"${genHex(8)}-${genHex(4)}"`,
+      "Cache-Control": "no-store",
+      "Last-Modified": new Date(Date.now() - 7 * 86400000).toUTCString(),
+      ETag: `"${genHex(8)}-${genHex(4)}"`,
       // Apache-style headers — most exposed .env files are on PHP/Apache stacks
-      "Server":              "Apache/2.4.41 (Ubuntu)",
+      Server: "Apache/2.4.41 (Ubuntu)",
       "X-Content-Type-Options": "nosniff",
     },
     body,
@@ -203,12 +214,12 @@ function makeAwsCredentials(canaryToken: string): HoneypotResponse {
   // - Character set: A-Z and 2-7 (base32 alphabet, no 0,1,8,9)
   // - Position 5 (first char after "AKIA"): always I or J (per statistical analysis)
   // - Last character: A or Q
-  const fakeKeyId     = makeAwsKeyId();
-  const fakeSecret    = makeAwsSecret();
+  const fakeKeyId = makeAwsKeyId();
+  const fakeSecret = makeAwsSecret();
   // Second profile uses ASIA prefix (temporary/STS credentials — more enticing)
-  const stsPrefixKey  = "ASIA" + makeAwsKeyId().slice(4);
-  const stsSecret     = makeAwsSecret();
-  const stsToken      = genBase64(300);
+  const stsPrefixKey = "ASIA" + makeAwsKeyId().slice(4);
+  const stsSecret = makeAwsSecret();
+  const stsToken = genBase64(300);
 
   const body = `[default]
 aws_access_key_id=${fakeKeyId}
@@ -228,13 +239,13 @@ region=eu-west-1
 `;
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "text/plain; charset=utf-8",
     headers: {
-      "Cache-Control":       "no-store",
-      "Last-Modified":       new Date(Date.now() - 14 * 86400000).toUTCString(),
+      "Cache-Control": "no-store",
+      "Last-Modified": new Date(Date.now() - 14 * 86400000).toUTCString(),
       // Match the Server header an AWS EC2 instance metadata endpoint might have
-      "Server":              "EC2ws",
+      Server: "EC2ws",
       "X-Content-Type-Options": "nosniff",
     },
     body,
@@ -246,11 +257,11 @@ region=eu-west-1
 
 function makeGitConfig(canaryToken: string, callbackBase: string, orgId: string): HoneypotResponse {
   // GitHub PAT format: ghp_ + 36 alphanumeric chars (confirmed from GitHub docs)
-  const ghpToken   = `ghp_${genAlphanumeric(36)}`;
+  const ghpToken = `ghp_${genAlphanumeric(36)}`;
   const glpatToken = `glpat-${genAlphanumeric(20)}`;
   const webhookUrl = `${callbackBase}/v1/canary/${orgId}/${canaryToken}`;
   // DNS canary in the git remote URL — fires on `git fetch` or `git clone`
-  const dnsGit     = `git.${canaryToken}.srv.anomira.io`;
+  const dnsGit = `git.${canaryToken}.srv.anomira.io`;
 
   const body = `[core]
 	repositoryformatversion = 0
@@ -282,12 +293,12 @@ function makeGitConfig(canaryToken: string, callbackBase: string, orgId: string)
 `;
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "text/plain; charset=utf-8",
     headers: {
-      "Cache-Control":    "no-store",
-      "Last-Modified":    new Date(Date.now() - 30 * 86400000).toUTCString(),
-      "Server":           "Apache/2.4.41 (Ubuntu)",
+      "Cache-Control": "no-store",
+      "Last-Modified": new Date(Date.now() - 30 * 86400000).toUTCString(),
+      Server: "Apache/2.4.41 (Ubuntu)",
     },
     body,
     canaryToken,
@@ -303,24 +314,41 @@ function makeGraphQL(): HoneypotResponse {
   const body = JSON.stringify({
     data: {
       __schema: {
-        queryType:    { name: "Query" },
+        queryType: { name: "Query" },
         mutationType: { name: "Mutation" },
         types: [
-          { kind: "OBJECT",  name: "Query",        fields: [{ name: "user" }, { name: "users" }, { name: "posts" }] },
-          { kind: "OBJECT",  name: "Mutation",      fields: [{ name: "login" }, { name: "createUser" }, { name: "adminReset" }, { name: "exportData" }] },
-          { kind: "OBJECT",  name: "User",          fields: [{ name: "id" }, { name: "email" }, { name: "role" }, { name: "createdAt" }] },
-          { kind: "OBJECT",  name: "AuthPayload",   fields: [{ name: "token" }, { name: "user" }] },
-          { kind: "SCALAR",  name: "String",        fields: null },
-          { kind: "SCALAR",  name: "Boolean",       fields: null },
-          { kind: "SCALAR",  name: "Int",           fields: null },
-          { kind: "SCALAR",  name: "ID",            fields: null },
+          {
+            kind: "OBJECT",
+            name: "Query",
+            fields: [{ name: "user" }, { name: "users" }, { name: "posts" }],
+          },
+          {
+            kind: "OBJECT",
+            name: "Mutation",
+            fields: [
+              { name: "login" },
+              { name: "createUser" },
+              { name: "adminReset" },
+              { name: "exportData" },
+            ],
+          },
+          {
+            kind: "OBJECT",
+            name: "User",
+            fields: [{ name: "id" }, { name: "email" }, { name: "role" }, { name: "createdAt" }],
+          },
+          { kind: "OBJECT", name: "AuthPayload", fields: [{ name: "token" }, { name: "user" }] },
+          { kind: "SCALAR", name: "String", fields: null },
+          { kind: "SCALAR", name: "Boolean", fields: null },
+          { kind: "SCALAR", name: "Int", fields: null },
+          { kind: "SCALAR", name: "ID", fields: null },
         ],
       },
     },
   });
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "application/json; charset=utf-8",
     headers: {
       "X-Powered-By": "Express",
@@ -338,41 +366,59 @@ function makeSpringActuator(canaryToken: string): HoneypotResponse {
   // Sensitive values are shown UNMASKED (simulating misconfigured `show-values=ALWAYS`)
   // — the most dangerous configuration, which is what attackers specifically look for.
   const dbPassword = genAlphanumeric(20);
-  const secretKey  = genHex(32);
+  const secretKey = genHex(32);
 
-  const body = JSON.stringify({
-    activeProfiles:  ["production"],
-    defaultProfiles: ["default"],
-    propertySources: [
-      {
-        name: "systemProperties",
-        properties: {
-          "java.runtime.version": { value: "17.0.9+9" },
-          "server.port":          { value: "8080" },
-          "user.home":            { value: "/home/appuser" },
+  const body = JSON.stringify(
+    {
+      activeProfiles: ["production"],
+      defaultProfiles: ["default"],
+      propertySources: [
+        {
+          name: "systemProperties",
+          properties: {
+            "java.runtime.version": { value: "17.0.9+9" },
+            "server.port": { value: "8080" },
+            "user.home": { value: "/home/appuser" },
+          },
         },
-      },
-      {
-        name: "applicationConfig: [classpath:/application-production.properties]",
-        properties: {
-          "spring.datasource.url":      { origin: "class path resource [application-production.properties] - 3:1", value: "jdbc:postgresql://db.internal:5432/myapp" },
-          "spring.datasource.username": { origin: "class path resource [application-production.properties] - 4:1", value: "dbadmin" },
-          "spring.datasource.password": { origin: "class path resource [application-production.properties] - 5:1", value: dbPassword },
-          "app.jwt.secret":             { origin: "class path resource [application-production.properties] - 8:1", value: secretKey },
-          "app.canary.token":           { value: canaryToken },
-          "management.endpoints.web.exposure.include": { value: "health,info,env,metrics,loggers" },
+        {
+          name: "applicationConfig: [classpath:/application-production.properties]",
+          properties: {
+            "spring.datasource.url": {
+              origin: "class path resource [application-production.properties] - 3:1",
+              value: "jdbc:postgresql://db.internal:5432/myapp",
+            },
+            "spring.datasource.username": {
+              origin: "class path resource [application-production.properties] - 4:1",
+              value: "dbadmin",
+            },
+            "spring.datasource.password": {
+              origin: "class path resource [application-production.properties] - 5:1",
+              value: dbPassword,
+            },
+            "app.jwt.secret": {
+              origin: "class path resource [application-production.properties] - 8:1",
+              value: secretKey,
+            },
+            "app.canary.token": { value: canaryToken },
+            "management.endpoints.web.exposure.include": {
+              value: "health,info,env,metrics,loggers",
+            },
+          },
         },
-      },
-    ],
-  }, null, 2);
+      ],
+    },
+    null,
+    2,
+  );
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "application/vnd.spring-boot.actuator.v3+json",
     headers: {
-      "X-Application-Context":    "myapp:production:8080",
-      "X-Content-Type-Options":   "nosniff",
-      "X-XSS-Protection":         "1; mode=block",
+      "X-Application-Context": "myapp:production:8080",
+      "X-Content-Type-Options": "nosniff",
+      "X-XSS-Protection": "1; mode=block",
     },
     body,
     canaryToken,
@@ -381,37 +427,45 @@ function makeSpringActuator(canaryToken: string): HoneypotResponse {
 
 // ─── JSON config ──────────────────────────────────────────────────────────────
 
-function makeJsonConfig(canaryToken: string, callbackBase: string, orgId: string): HoneypotResponse {
+function makeJsonConfig(
+  canaryToken: string,
+  callbackBase: string,
+  orgId: string,
+): HoneypotResponse {
   const webhookUrl = `${callbackBase}/v1/canary/${orgId}/${canaryToken}`;
 
-  const body = JSON.stringify({
-    environment: "production",
-    version:     "2.4.1",
-    database: {
-      host:     "db.internal.company.com",
-      port:     5432,
-      name:     "app_production",
-      user:     "db_prod",
-      password: genAlphanumeric(20),
+  const body = JSON.stringify(
+    {
+      environment: "production",
+      version: "2.4.1",
+      database: {
+        host: "db.internal.company.com",
+        port: 5432,
+        name: "app_production",
+        user: "db_prod",
+        password: genAlphanumeric(20),
+      },
+      jwt: {
+        secret: genHex(32),
+        expiresIn: "15m",
+      },
+      webhooks: {
+        events: webhookUrl,
+        alerts: `${callbackBase}/v1/canary/${orgId}/${canaryToken}`,
+      },
+      internalApiKey: genHex(32),
     },
-    jwt: {
-      secret:    genHex(32),
-      expiresIn: "15m",
-    },
-    webhooks: {
-      events:  webhookUrl,
-      alerts:  `${callbackBase}/v1/canary/${orgId}/${canaryToken}`,
-    },
-    internalApiKey: genHex(32),
-  }, null, 2);
+    null,
+    2,
+  );
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "application/json; charset=utf-8",
     headers: {
       "Cache-Control": "no-store",
-      "ETag":          `"${genHex(8)}"`,
-      "X-Powered-By":  "Express",
+      ETag: `"${genHex(8)}"`,
+      "X-Powered-By": "Express",
     },
     body,
     canaryToken,
@@ -432,14 +486,13 @@ function makeHtpasswd(canaryToken: string): HoneypotResponse {
   // APR1-MD5: $apr1$ + 8-char salt + $ + 22-char base64-like hash
   // Character set for APR1: A-Z, a-z, 0-9, /, .
   const apr1Salt = genAlphanumeric(8).toLowerCase();
-  const apr1Hash = genBase64(22).replace(/[+=/]/g, (c) =>
-    ({ "+": ".", "=": "/", "/": "X" }[c] ?? c)
+  const apr1Hash = genBase64(22).replace(
+    /[+=/]/g,
+    (c) => ({ "+": ".", "=": "/", "/": "X" })[c] ?? c,
   );
 
   // bcrypt: $2y$10$ + 53-char base64url hash (standard bcrypt output)
-  const bcryptHash = genBase64(53).replace(/[+=]/g, (c) =>
-    ({ "+": ".", "=": "/" }[c] ?? c)
-  );
+  const bcryptHash = genBase64(53).replace(/[+=]/g, (c) => ({ "+": ".", "=": "/" })[c] ?? c);
 
   // Third entry uses the canary token woven into the hash — if cracked and used:
   const canaryApr1 = `$apr1$${canaryToken.slice(0, 8)}$${genBase64(22).slice(0, 22)}`;
@@ -452,12 +505,12 @@ backup-user:$apr1$${genAlphanumeric(8).toLowerCase()}$${genBase64(22).slice(0, 2
 `;
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "text/plain; charset=utf-8",
     headers: {
-      "Cache-Control":    "no-store",
-      "Last-Modified":    new Date(Date.now() - 45 * 86400000).toUTCString(),
-      "Server":           "Apache/2.4.41 (Ubuntu)",
+      "Cache-Control": "no-store",
+      "Last-Modified": new Date(Date.now() - 45 * 86400000).toUTCString(),
+      Server: "Apache/2.4.41 (Ubuntu)",
       "Content-Disposition": "inline",
     },
     body,
@@ -505,12 +558,12 @@ function makeS3Bucket(canaryToken: string): HoneypotResponse {
 </ListAllMyBucketsResult>`;
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "application/xml",
     headers: {
       "x-amz-request-id": genHex(8).toUpperCase() + genHex(8).toUpperCase(),
-      "x-amz-id-2":       genBase64(60),
-      "Server":           "AmazonS3",
+      "x-amz-id-2": genBase64(60),
+      Server: "AmazonS3",
     },
     body,
     canaryToken,
@@ -599,12 +652,12 @@ function makeAdminPortal(canaryToken: string): HoneypotResponse {
 </html>`;
 
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "text/html; charset=utf-8",
     headers: {
-      "Cache-Control":    "no-store, no-cache",
-      "X-Frame-Options":  "SAMEORIGIN",
-      "Server":           "nginx/1.18.0 (Ubuntu)",
+      "Cache-Control": "no-store, no-cache",
+      "X-Frame-Options": "SAMEORIGIN",
+      Server: "nginx/1.18.0 (Ubuntu)",
     },
     body,
     canaryToken,
@@ -649,11 +702,11 @@ export function makeAdminLoginFailed(): HoneypotResponse {
 </html>`;
 
   return {
-    statusCode:  401,
+    statusCode: 401,
     contentType: "text/html; charset=utf-8",
     headers: {
-      "Cache-Control":   "no-store",
-      "Server":          "nginx/1.18.0 (Ubuntu)",
+      "Cache-Control": "no-store",
+      Server: "nginx/1.18.0 (Ubuntu)",
       "WWW-Authenticate": 'Form realm="Administration Panel"',
     },
     body,
@@ -665,10 +718,10 @@ export function makeAdminLoginFailed(): HoneypotResponse {
 
 function makeGeneric(canaryToken: string): HoneypotResponse {
   return {
-    statusCode:  200,
+    statusCode: 200,
     contentType: "text/plain; charset=utf-8",
-    headers:     { "Cache-Control": "no-store" },
-    body:        `# ${canaryToken}\n`,
+    headers: { "Cache-Control": "no-store" },
+    body: `# ${canaryToken}\n`,
     canaryToken,
   };
 }
@@ -684,22 +737,22 @@ function makeGeneric(canaryToken: string): HoneypotResponse {
  * Format confirmed: Auth0 JWT docs + canarytokens.org JWT token implementation.
  */
 export function generateCanaryJwt(canaryToken: string, secret: string): string {
-  const now     = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000);
   // kid looks like a normal UUID-format signing key — detection uses jti instead
-  const kid = `${canaryToken.slice(0,8)}-${canaryToken.slice(8,12)}-4${canaryToken.slice(13,16)}-${canaryToken.slice(16,20)}-${canaryToken.slice(20,32)}`;
-  const header  = { alg: "HS256", typ: "JWT", kid };
+  const kid = `${canaryToken.slice(0, 8)}-${canaryToken.slice(8, 12)}-4${canaryToken.slice(13, 16)}-${canaryToken.slice(16, 20)}-${canaryToken.slice(20, 32)}`;
+  const header = { alg: "HS256", typ: "JWT", kid };
   const payload = {
-    sub:   "svc_internal_7482",
-    name:  "service-account",
-    role:  "admin",
+    sub: "svc_internal_7482",
+    name: "service-account",
+    role: "admin",
     email: "admin@internal.company.com",
-    iat:   now - 172_800, // issued 48h ago (realistic stale credential)
-    exp:   now - 86_400,  // expired 24h ago
-    jti:   canaryToken,   // raw hex — no "canary-" prefix to leak purpose
+    iat: now - 172_800, // issued 48h ago (realistic stale credential)
+    exp: now - 86_400, // expired 24h ago
+    jti: canaryToken, // raw hex — no "canary-" prefix to leak purpose
   };
 
-  const h  = Buffer.from(JSON.stringify(header)).toString("base64url");
-  const p  = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const h = Buffer.from(JSON.stringify(header)).toString("base64url");
+  const p = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = createHmac("sha256", secret).update(`${h}.${p}`).digest("base64url");
   return `${h}.${p}.${sig}`;
 }
@@ -711,8 +764,9 @@ function makeAwsKeyId(): string {
   // Confirmed format: AKIA + I (pos 5) + 14 random [A-Z2-7] + A
   // Source: awsteele.com/blog/2020/09/26/aws-access-key-format
   const base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const middle      = Array.from({ length: 13 }, () =>
-    base32Chars[randomBytes(1)[0]! % base32Chars.length]!
+  const middle = Array.from(
+    { length: 13 },
+    () => base32Chars[randomBytes(1)[0]! % base32Chars.length]!,
   ).join("");
   return `AKIAI${middle}A`; // AKIA + I + 13 chars + A = 20 total
 }
@@ -730,11 +784,11 @@ function genHex(bytes: number): string {
 
 function genAlphanumeric(len: number): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from({ length: len }, () =>
-    chars[randomBytes(1)[0]! % chars.length]!
-  ).join("");
+  return Array.from({ length: len }, () => chars[randomBytes(1)[0]! % chars.length]!).join("");
 }
 
 function genBase64(approxLen: number): string {
-  return randomBytes(Math.ceil(approxLen * 3 / 4)).toString("base64").slice(0, approxLen);
+  return randomBytes(Math.ceil((approxLen * 3) / 4))
+    .toString("base64")
+    .slice(0, approxLen);
 }

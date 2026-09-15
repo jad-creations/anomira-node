@@ -52,13 +52,13 @@ The middleware goes **after** `express.json()` and **after your auth middleware*
 
 The SDK automatically extracts the authenticated user ID from the request — no configuration required. It tries the following sources in order:
 
-| Priority | Source | Set by |
-|---|---|---|
-| 1 | `req.user.id` / `.sub` / `.userId` / `._id` / `.uid` | Passport.js, express-jwt v6, Firebase Admin, @fastify/jwt |
-| 2 | `req.auth.sub` / `.id` / `.userId` | express-jwt v7+ |
-| 3 | `req.userId` / `req.accountId` / `req.customerId` | Custom middleware |
-| 4 | `req.session.userId` / `req.session.user.id` | express-session |
-| 5 | JWT decode from `Authorization: Bearer ...` | **Automatic fallback — works even without explicit auth middleware** |
+| Priority | Source                                               | Set by                                                               |
+| -------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| 1        | `req.user.id` / `.sub` / `.userId` / `._id` / `.uid` | Passport.js, express-jwt v6, Firebase Admin, @fastify/jwt            |
+| 2        | `req.auth.sub` / `.id` / `.userId`                   | express-jwt v7+                                                      |
+| 3        | `req.userId` / `req.accountId` / `req.customerId`    | Custom middleware                                                    |
+| 4        | `req.session.userId` / `req.session.user.id`         | express-session                                                      |
+| 5        | JWT decode from `Authorization: Bearer ...`          | **Automatic fallback — works even without explicit auth middleware** |
 
 Tier 5 is the safety net: if your auth middleware hasn't set `req.user` yet, the SDK decodes the JWT token in the `Authorization` header itself (without verifying the signature — it only reads the `sub` / `id` claim). This means user tracking works even if middleware registration order is incorrect.
 
@@ -66,8 +66,8 @@ Tier 5 is the safety net: if your auth middleware hasn't set `req.user` yet, the
 
 ```ts
 const anomira = new Anomira({
-  apiKey:    process.env.ANOMIRA_API_KEY!,
-  appId:     process.env.ANOMIRA_APP_ID!,
+  apiKey: process.env.ANOMIRA_API_KEY!,
+  appId: process.env.ANOMIRA_APP_ID!,
   getUserId: (req) => (req as any).myCustomField?.userId,
 });
 ```
@@ -81,17 +81,21 @@ const app = express();
 
 const anomira = new Anomira({
   apiKey: process.env.ANOMIRA_API_KEY!,
-  appId:  process.env.ANOMIRA_APP_ID!,
-  service: "my-api",          // appears in the Logs dashboard
-  captureConsole: true,        // forwards console.log/warn/error to Logs
+  appId: process.env.ANOMIRA_APP_ID!,
+  service: "my-api", // appears in the Logs dashboard
+  captureConsole: true, // forwards console.log/warn/error to Logs
 });
 
 app.use(express.json());
-app.use(anomira.express());    // ← single line — instruments all routes
+app.use(anomira.express()); // ← single line — instruments all routes
 
 // Your routes
-app.post("/api/auth/login", (req, res) => { /* ... */ });
-app.get("/api/users/:id",   (req, res) => { /* ... */ });
+app.post("/api/auth/login", (req, res) => {
+  /* ... */
+});
+app.get("/api/users/:id", (req, res) => {
+  /* ... */
+});
 
 // Always flush before shutdown
 process.on("SIGTERM", async () => {
@@ -112,7 +116,7 @@ const { Anomira } = require("@anomira/node-sdk");
 const app = express();
 const anomira = new Anomira({
   apiKey: process.env.ANOMIRA_API_KEY,
-  appId:  process.env.ANOMIRA_APP_ID,
+  appId: process.env.ANOMIRA_APP_ID,
 });
 
 app.use(express.json());
@@ -132,8 +136,8 @@ import { Anomira } from "@anomira/node-sdk";
 const app = Fastify({ logger: true });
 
 const anomira = new Anomira({
-  apiKey:  process.env.ANOMIRA_API_KEY!,
-  appId:   process.env.ANOMIRA_APP_ID!,
+  apiKey: process.env.ANOMIRA_API_KEY!,
+  appId: process.env.ANOMIRA_APP_ID!,
   service: "my-api",
 });
 
@@ -141,8 +145,12 @@ const anomira = new Anomira({
 await app.register(anomira.fastify());
 
 // Your routes
-app.post("/api/auth/login", async (req, reply) => { /* ... */ });
-app.get("/api/users/:id",   async (req, reply) => { /* ... */ });
+app.post("/api/auth/login", async (req, reply) => {
+  /* ... */
+});
+app.get("/api/users/:id", async (req, reply) => {
+  /* ... */
+});
 
 process.on("SIGTERM", async () => {
   await anomira.flush();
@@ -158,17 +166,17 @@ await app.listen({ port: 3000, host: "0.0.0.0" });
 
 Once registered, the middleware records **every request** with zero additional code:
 
-| Signal | Description |
-|---|---|
-| HTTP method, path, status | Full request log in **API Events** |
-| Source IP + geolocation | Country, city, lat/lng |
-| Latency | `latencyMs` per request |
-| Brute force | Repeated failures on the same endpoint |
-| Rate abuse | Unusually high request rate from one IP |
-| Path traversal | `../`, `%2e%2e/`, null bytes in paths |
-| XSS | Script tags and injection payloads in bodies |
-| Scanner/bot probing | Systematic enumeration of endpoints |
-| Geo-velocity | Impossible logins from two countries within minutes |
+| Signal                    | Description                                         |
+| ------------------------- | --------------------------------------------------- |
+| HTTP method, path, status | Full request log in **API Events**                  |
+| Source IP + geolocation   | Country, city, lat/lng                              |
+| Latency                   | `latencyMs` per request                             |
+| Brute force               | Repeated failures on the same endpoint              |
+| Rate abuse                | Unusually high request rate from one IP             |
+| Path traversal            | `../`, `%2e%2e/`, null bytes in paths               |
+| XSS                       | Script tags and injection payloads in bodies        |
+| Scanner/bot probing       | Systematic enumeration of endpoints                 |
+| Geo-velocity              | Impossible logins from two countries within minutes |
 
 ---
 
@@ -204,42 +212,42 @@ anomira.track("auth.otp.failed", { userId: req.body.phone });
 ```ts
 // Credential stuffing / failed login attempt
 await anomira.trackLogin({
-  ip:      anomira.getClientIp(req),
-  userId:  req.body.email,     // email or user ID
-  success: false,              // false = failed attempt
+  ip: anomira.getClientIp(req),
+  userId: req.body.email, // email or user ID
+  success: false, // false = failed attempt
 });
 
 // Successful login (enables geo-velocity tracking)
 await anomira.trackLogin({
-  ip:      anomira.getClientIp(req),
-  userId:  user.id,
+  ip: anomira.getClientIp(req),
+  userId: user.id,
   success: true,
 });
 
 // Failed OTP — otp_flood detection
 anomira.track("auth.otp.failed", {
-  ip:     anomira.getClientIp(req),
+  ip: anomira.getClientIp(req),
   userId: req.body.phone,
-  meta:   { endpoint: "/api/verify-otp" },
+  meta: { endpoint: "/api/verify-otp" },
 });
 
 // SIM swap detection — call after any phone-based auth
 anomira.trackPhoneAuth({
-  ip:     anomira.getClientIp(req),
+  ip: anomira.getClientIp(req),
   userId: user.id,
-  phone:  user.phone,
+  phone: user.phone,
 });
 
 // Account takeover signal — e.g., password changed from new IP
 anomira.track("auth.account.takeover", {
-  ip:     anomira.getClientIp(req),
+  ip: anomira.getClientIp(req),
   userId: user.id,
-  meta:   { reason: "password_changed_new_ip" },
+  meta: { reason: "password_changed_new_ip" },
 });
 
 // Webhook replay — call when you detect a replayed webhook signature
 anomira.track("webhook.replay.detected", {
-  ip:   anomira.getClientIp(req),
+  ip: anomira.getClientIp(req),
   meta: { webhookId: req.headers["x-webhook-id"] },
 });
 ```
@@ -251,10 +259,10 @@ anomira.track("webhook.replay.detected", {
 Replace `console.log` calls with `anomira.log` to push structured logs to the **Logs dashboard** with level, service name, and metadata.
 
 ```ts
-anomira.log("info",  "User registered",    { userId: user.id, plan: "starter" });
-anomira.log("warn",  "Slow DB query",       { queryMs: 1240, table: "transactions" });
-anomira.log("error", "Payment failed",      { reason: err.message, amount: 500_00 });
-anomira.log("debug", "Cache miss",          { key: cacheKey });
+anomira.log("info", "User registered", { userId: user.id, plan: "starter" });
+anomira.log("warn", "Slow DB query", { queryMs: 1240, table: "transactions" });
+anomira.log("error", "Payment failed", { reason: err.message, amount: 500_00 });
+anomira.log("debug", "Cache miss", { key: cacheKey });
 ```
 
 Or set `captureConsole: true` in the constructor to automatically forward all `console.*` calls — no code changes needed.
@@ -267,7 +275,7 @@ The SDK syncs your dashboard's blocked IPs and firewall rules every 60 seconds. 
 
 ```ts
 app.use((req, res, next) => {
-  const ip = anomira.getClientIp(req);  // always use this, not req.ip
+  const ip = anomira.getClientIp(req); // always use this, not req.ip
 
   // Check if IP is manually blocked in the dashboard
   if (anomira.isBlocked(ip)) {
@@ -276,9 +284,9 @@ app.use((req, res, next) => {
 
   // Check firewall rules (pattern-based: path, method, header, body)
   const match = anomira.matchFirewallRule({
-    url:     req.originalUrl,
-    method:  req.method,
-    body:    req.body,
+    url: req.originalUrl,
+    method: req.method,
+    body: req.body,
     headers: req.headers,
     ip,
   });
@@ -303,14 +311,14 @@ Register your known API routes once on startup. Anomira will flag any traffic to
 ```ts
 // Call this once, after all your routes are defined
 await anomira.declareEndpoints([
-  { method: "POST", path: "/api/auth/login",       auth: false },
-  { method: "POST", path: "/api/auth/register",    auth: false },
-  { method: "POST", path: "/api/auth/forgot",      auth: false },
-  { method: "GET",  path: "/api/users/:id",        auth: true  },
-  { method: "PUT",  path: "/api/users/:id",        auth: true  },
-  { method: "GET",  path: "/api/orders",           auth: true  },
-  { method: "POST", path: "/api/orders",           auth: true  },
-  { method: "GET",  path: "/api/health",           auth: false },
+  { method: "POST", path: "/api/auth/login", auth: false },
+  { method: "POST", path: "/api/auth/register", auth: false },
+  { method: "POST", path: "/api/auth/forgot", auth: false },
+  { method: "GET", path: "/api/users/:id", auth: true },
+  { method: "PUT", path: "/api/users/:id", auth: true },
+  { method: "GET", path: "/api/orders", auth: true },
+  { method: "POST", path: "/api/orders", auth: true },
+  { method: "GET", path: "/api/health", auth: false },
 ]);
 ```
 
@@ -342,16 +350,16 @@ npx @anomira/node-sdk scan ./src --quiet   # violations only, no header
 
 **Detects:**
 
-| Category | Examples |
-|---|---|
-| Cloud | AWS access keys, GCP service accounts, Azure connection strings |
-| Source control | GitHub (`ghp_`), GitLab (`glpat-`), NPM (`npm_`) tokens |
-| Payment | Stripe (`sk_live_`), Paystack secret keys |
-| Communication | Slack (`xoxb-`), Twilio, SendGrid |
-| Database | Connection strings with embedded passwords |
-| Auth | JWT tokens, bearer tokens, generic API keys |
-| PII | BVN/NIN (11-digit), card PANs, Nigerian phone numbers |
-| Unknown | High-entropy strings on secret-like variable names (`--strict`) |
+| Category       | Examples                                                        |
+| -------------- | --------------------------------------------------------------- |
+| Cloud          | AWS access keys, GCP service accounts, Azure connection strings |
+| Source control | GitHub (`ghp_`), GitLab (`glpat-`), NPM (`npm_`) tokens         |
+| Payment        | Stripe (`sk_live_`), Paystack secret keys                       |
+| Communication  | Slack (`xoxb-`), Twilio, SendGrid                               |
+| Database       | Connection strings with embedded passwords                      |
+| Auth           | JWT tokens, bearer tokens, generic API keys                     |
+| PII            | BVN/NIN (11-digit), card PANs, Nigerian phone numbers           |
+| Unknown        | High-entropy strings on secret-like variable names (`--strict`) |
 
 Add to CI/CD — exits `1` if violations are found:
 
@@ -385,34 +393,35 @@ app.addHook("onClose", async () => {
 
 ## Environment variables reference
 
-| Variable | Required | Description |
-|---|---|---|
-| `ANOMIRA_API_KEY` | ✅ | Your API key — from dashboard under **Apps → Setup** |
-| `ANOMIRA_APP_ID` | ✅ | Your app ID — from dashboard under **Apps → Setup** |
+| Variable          | Required | Description                                          |
+| ----------------- | -------- | ---------------------------------------------------- |
+| `ANOMIRA_API_KEY` | ✅       | Your API key — from dashboard under **Apps → Setup** |
+| `ANOMIRA_APP_ID`  | ✅       | Your app ID — from dashboard under **Apps → Setup**  |
 
 ---
 
 ## Configuration reference
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `apiKey` | `string` | — | API key (required) |
-| `appId` | `string` | — | App ID (required) |
-| `debug` | `boolean` | `false` | Log SDK activity to console |
-| `service` | `string` | `"app"` | Service name tag on all log entries |
-| `captureConsole` | `boolean` | `false` | Forward `console.*` to Logs dashboard |
-| `detect.bruteForce` | `boolean` | `true` | Brute force detection on auth endpoints |
-| `detect.rateAbuse` | `boolean` | `true` | High-rate abuse from single IP |
-| `detect.pathTraversal` | `boolean` | `true` | Path traversal payloads in URLs |
-| `detect.xss` | `boolean` | `true` | XSS payloads in request bodies |
-| `detect.scanDetection` | `boolean` | `true` | Endpoint scanner / bot probing |
-| `detect.geoVelocity` | `boolean` | `true` | Impossible travel between logins |
+| Option                 | Type      | Default | Description                             |
+| ---------------------- | --------- | ------- | --------------------------------------- |
+| `apiKey`               | `string`  | —       | API key (required)                      |
+| `appId`                | `string`  | —       | App ID (required)                       |
+| `debug`                | `boolean` | `false` | Log SDK activity to console             |
+| `service`              | `string`  | `"app"` | Service name tag on all log entries     |
+| `captureConsole`       | `boolean` | `false` | Forward `console.*` to Logs dashboard   |
+| `detect.bruteForce`    | `boolean` | `true`  | Brute force detection on auth endpoints |
+| `detect.rateAbuse`     | `boolean` | `true`  | High-rate abuse from single IP          |
+| `detect.pathTraversal` | `boolean` | `true`  | Path traversal payloads in URLs         |
+| `detect.xss`           | `boolean` | `true`  | XSS payloads in request bodies          |
+| `detect.scanDetection` | `boolean` | `true`  | Endpoint scanner / bot probing          |
+| `detect.geoVelocity`   | `boolean` | `true`  | Impossible travel between logins        |
 
 ---
 
 ## Troubleshooting
 
 **No events showing in the dashboard?**
+
 1. Set `debug: true` in the constructor — the SDK will log every event it sends to the console.
 2. Check that `ANOMIRA_API_KEY` and `ANOMIRA_APP_ID` are set in your process environment (`console.log(process.env.ANOMIRA_API_KEY)`).
 3. Confirm the middleware is registered **before** your routes and **after** body parsers.
@@ -423,11 +432,9 @@ Use `anomira.getClientIp(req)` — it handles all proxy headers and TypeScript t
 
 **`flush()` taking too long on shutdown?**
 The flush waits for in-flight HTTP requests to complete. If your process needs to exit fast, you can add a timeout:
+
 ```ts
-await Promise.race([
-  anomira.flush(),
-  new Promise((resolve) => setTimeout(resolve, 3000)),
-]);
+await Promise.race([anomira.flush(), new Promise((resolve) => setTimeout(resolve, 3000))]);
 ```
 
 ---

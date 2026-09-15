@@ -2,24 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Anomira, EventName } from "../index.js";
 
 const BASE_CONFIG = {
-  apiKey:          "sk_test",
-  appId:           "app_test",
-  ingestUrl:       "https://ingest.example.com/v1/events",
+  apiKey: "sk_test",
+  appId: "app_test",
+  ingestUrl: "https://ingest.example.com/v1/events",
   flushIntervalMs: 60_000,
-  maxBatchSize:    100,
-  maxRetries:      1,
-  debug:           false,
+  maxBatchSize: 100,
+  maxRetries: 1,
+  debug: false,
 };
 
 /** Minimal mock of Express req/res/next */
 function makeReq(overrides: Record<string, unknown> = {}) {
   return {
-    method:      "GET",
+    method: "GET",
     originalUrl: "/api/resource",
-    headers:     { "user-agent": "Mozilla/5.0", "x-forwarded-for": "5.5.5.5" },
-    body:        {},
-    socket:      { remoteAddress: "5.5.5.5" },
-    user:        undefined as unknown,
+    headers: { "user-agent": "Mozilla/5.0", "x-forwarded-for": "5.5.5.5" },
+    body: {},
+    socket: { remoteAddress: "5.5.5.5" },
+    user: undefined as unknown,
     ...overrides,
   };
 }
@@ -28,19 +28,35 @@ function makeRes(statusCode = 200) {
   const listeners: Map<string, (() => void)[]> = new Map();
   return {
     statusCode,
-    on:  (event: string, fn: () => void) => { listeners.set(event, [...(listeners.get(event) ?? []), fn]); },
+    on: (event: string, fn: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), fn]);
+    },
     off: (event: string, fn: () => void) => {
       const arr = listeners.get(event) ?? [];
-      listeners.set(event, arr.filter((f) => f !== fn));
+      listeners.set(
+        event,
+        arr.filter((f) => f !== fn),
+      );
     },
-    emit: (event: string) => { (listeners.get(event) ?? []).forEach((fn) => fn()); },
+    emit: (event: string) => {
+      (listeners.get(event) ?? []).forEach((fn) => fn());
+    },
   };
 }
 
-function ingestBodies(fetchSpy: ReturnType<typeof vi.fn>): Array<{ events: Array<{ name: string; ip?: string }> }> {
+function ingestBodies(
+  fetchSpy: ReturnType<typeof vi.fn>,
+): Array<{ events: Array<{ name: string; ip?: string }> }> {
   return fetchSpy.mock.calls
-    .filter((c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST")
-    .map((c) => JSON.parse(c[1]?.body as string) as { events: Array<{ name: string; ip?: string }> });
+    .filter(
+      (c) =>
+        typeof c[0] === "string" &&
+        (c[0] as string).endsWith("/v1/events") &&
+        c[1]?.method === "POST",
+    )
+    .map(
+      (c) => JSON.parse(c[1]?.body as string) as { events: Array<{ name: string; ip?: string }> },
+    );
 }
 
 function allEvents(fetchSpy: ReturnType<typeof vi.fn>) {
@@ -66,8 +82,8 @@ describe("Express middleware", () => {
   });
 
   it("calls next() immediately", () => {
-    const req  = makeReq();
-    const res  = makeRes();
+    const req = makeReq();
+    const res = makeRes();
     const next = vi.fn();
     void middleware(req as never, res as never, next);
     expect(next).toHaveBeenCalledOnce();
@@ -115,9 +131,9 @@ describe("Express middleware", () => {
 
   it("tracks XSS_DETECTED when body contains <script>", async () => {
     const req = makeReq({
-      method:      "POST",
+      method: "POST",
       originalUrl: "/api/comments",
-      body:        { comment: '<script>alert("xss")</script>' },
+      body: { comment: '<script>alert("xss")</script>' },
     });
     const res = makeRes(200);
     void middleware(req as never, res as never, vi.fn());
@@ -145,7 +161,10 @@ describe("Express middleware", () => {
   it("does NOT track SCAN_DETECTED on 404 with normal browser user-agent", async () => {
     const req = makeReq({
       originalUrl: "/missing-page",
-      headers:     { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "x-forwarded-for": "7.7.7.7" },
+      headers: {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "x-forwarded-for": "7.7.7.7",
+      },
     });
     const res = makeRes(404);
     void middleware(req as never, res as never, vi.fn());

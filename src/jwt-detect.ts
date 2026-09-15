@@ -41,13 +41,21 @@
 
 const STANDARD_ALGORITHMS = new Set([
   // HMAC (symmetric)
-  "HS256", "HS384", "HS512",
+  "HS256",
+  "HS384",
+  "HS512",
   // RSA PKCS#1 (asymmetric)
-  "RS256", "RS384", "RS512",
+  "RS256",
+  "RS384",
+  "RS512",
   // ECDSA (asymmetric)
-  "ES256", "ES384", "ES512",
+  "ES256",
+  "ES384",
+  "ES512",
   // RSA-PSS (asymmetric)
-  "PS256", "PS384", "PS512",
+  "PS256",
+  "PS384",
+  "PS512",
   // Edwards-curve (RFC 8037)
   "EdDSA",
 ]);
@@ -67,23 +75,23 @@ const MAX_HMAC_SIG_LENGTH = 128;
 
 function decodeBase64Url(s: string): string {
   const padded = s.replace(/-/g, "+").replace(/_/g, "/");
-  const pad    = (4 - padded.length % 4) % 4;
+  const pad = (4 - (padded.length % 4)) % 4;
   return Buffer.from(padded + "=".repeat(pad), "base64").toString("utf8");
 }
 
 // ─── Detection result ─────────────────────────────────────────────────────────
 
 export type JwtAttackType =
-  | "alg_none"           // alg field is "none" (case-insensitive)
-  | "unknown_algorithm"  // alg value not in standard RFC 7518 set
-  | "algorithm_confusion"// HS256 family with RSA-length signature (RS256→HS256 attack)
+  | "alg_none" // alg field is "none" (case-insensitive)
+  | "unknown_algorithm" // alg value not in standard RFC 7518 set
+  | "algorithm_confusion" // HS256 family with RSA-length signature (RS256→HS256 attack)
   | "missing_signature"; // fewer than 3 segments or empty third segment
 
 export interface JwtDetectionResult {
-  detected:  boolean;
-  attack:    JwtAttackType | null;
-  alg:       string | null;    // what the attacker claimed
-  detail:    string;
+  detected: boolean;
+  attack: JwtAttackType | null;
+  alg: string | null; // what the attacker claimed
+  detail: string;
 }
 
 // ─── Main detector ────────────────────────────────────────────────────────────
@@ -130,9 +138,9 @@ export function analyseJwt(token: string): JwtDetectionResult {
   if (parts.length < 3 || parts[2] === "") {
     return {
       detected: true,
-      attack:   "missing_signature",
-      alg:      null,
-      detail:   `JWT has ${parts.length} segment(s) — signature is missing or empty.`,
+      attack: "missing_signature",
+      alg: null,
+      detail: `JWT has ${parts.length} segment(s) — signature is missing or empty.`,
     };
   }
 
@@ -156,9 +164,9 @@ export function analyseJwt(token: string): JwtDetectionResult {
   if (alg.toLowerCase() === "none") {
     return {
       detected: true,
-      attack:   "alg_none",
+      attack: "alg_none",
       alg,
-      detail:   `JWT header specifies alg="${alg}" — server told to skip signature verification.`,
+      detail: `JWT header specifies alg="${alg}" — server told to skip signature verification.`,
     };
   }
 
@@ -169,9 +177,9 @@ export function analyseJwt(token: string): JwtDetectionResult {
   if (!STANDARD_ALGORITHMS.has(alg)) {
     return {
       detected: true,
-      attack:   "unknown_algorithm",
+      attack: "unknown_algorithm",
       alg,
-      detail:   `JWT header specifies non-standard alg="${alg}" — not in RFC 7518 algorithm set.`,
+      detail: `JWT header specifies non-standard alg="${alg}" — not in RFC 7518 algorithm set.`,
     };
   }
 
@@ -182,9 +190,9 @@ export function analyseJwt(token: string): JwtDetectionResult {
   if (HMAC_ALGORITHMS.has(alg) && parts[2]!.length > MAX_HMAC_SIG_LENGTH) {
     return {
       detected: true,
-      attack:   "algorithm_confusion",
+      attack: "algorithm_confusion",
       alg,
-      detail:   `JWT claims ${alg} (HMAC) but signature is ${parts[2]!.length} chars — characteristic of RSA key used as HMAC secret (algorithm confusion attack).`,
+      detail: `JWT claims ${alg} (HMAC) but signature is ${parts[2]!.length} chars — characteristic of RSA key used as HMAC secret (algorithm confusion attack).`,
     };
   }
 
@@ -198,8 +206,8 @@ export function analyseJwt(token: string): JwtDetectionResult {
  */
 export function scanRequestForJwtAttacks(
   headers: Record<string, string | string[] | undefined>,
-  body:    unknown,
-  query:   Record<string, string | string[] | undefined>,
+  body: unknown,
+  query: Record<string, string | string[] | undefined>,
 ): JwtDetectionResult | null {
   const candidates: string[] = [];
 
@@ -212,7 +220,16 @@ export function scanRequestForJwtAttacks(
   }
 
   // 2. Common token body fields
-  const TOKEN_FIELDS = new Set(["token", "jwt", "access_token", "accessToken", "id_token", "idToken", "refresh_token", "refreshToken"]);
+  const TOKEN_FIELDS = new Set([
+    "token",
+    "jwt",
+    "access_token",
+    "accessToken",
+    "id_token",
+    "idToken",
+    "refresh_token",
+    "refreshToken",
+  ]);
   if (body && typeof body === "object" && !Array.isArray(body)) {
     for (const [key, val] of Object.entries(body as Record<string, unknown>)) {
       if (TOKEN_FIELDS.has(key) && typeof val === "string" && looksLikeJwt(val)) {

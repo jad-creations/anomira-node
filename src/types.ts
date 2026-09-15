@@ -65,19 +65,19 @@ export interface AnomiraConfig {
    */
   detect?: {
     /** Flag repeated login failures from the same IP as brute_force */
-    bruteForce?:      boolean;
+    bruteForce?: boolean;
     /** Flag 429 responses as rate_abuse */
-    rateAbuse?:       boolean;
+    rateAbuse?: boolean;
     /** Flag path traversal patterns in the URL */
-    pathTraversal?:   boolean;
+    pathTraversal?: boolean;
     /** Flag XSS patterns in request body */
-    xss?:             boolean;
+    xss?: boolean;
     /** Flag suspicious scan patterns (many 404s) */
-    scanDetection?:   boolean;
+    scanDetection?: boolean;
     /** Detect impossible travel between login events */
-    geoVelocity?:     boolean;
+    geoVelocity?: boolean;
     /** Detect SSRF payloads in request parameters (url, redirect, webhook, etc.) */
-    ssrf?:            boolean;
+    ssrf?: boolean;
     /** Detect JWT header manipulation (alg:none, unknown algorithm, algorithm confusion, missing signature) */
     jwtManipulation?: boolean;
   };
@@ -137,11 +137,11 @@ export interface AnomiraConfig {
 // ─── SDK event ────────────────────────────────────────────────────────────────
 
 export interface SdkEvent {
-  name:    string;
-  ts:      number;
-  ip:      string;
+  name: string;
+  ts: number;
+  ip: string;
   userId?: string;
-  meta?:   Record<string, unknown>;
+  meta?: Record<string, unknown>;
 }
 
 // ─── Internal buffer event ────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ export interface BufferedEvent extends SdkEvent {
 // ─── Ingest request body ─────────────────────────────────────────────────────
 
 export interface IngestPayload {
-  appId:  string;
+  appId: string;
   events: SdkEvent[];
 }
 
@@ -161,47 +161,47 @@ export interface IngestPayload {
 
 export const EventName = {
   // Auth
-  LOGIN_SUCCESS:    "auth.login.success",
-  LOGIN_FAILED:     "auth.login.failed",
-  LOGOUT:           "auth.logout",
-  OTP_FAILED:       "auth.otp.failed",
-  OTP_SUCCESS:      "auth.otp.success",
-  BVN_LOOKUP:       "auth.bvn.lookup",
-  NIN_LOOKUP:       "auth.nin.lookup",        // NIN enumeration detection
-  GEO_VELOCITY:     "auth.login.geo_velocity",
+  LOGIN_SUCCESS: "auth.login.success",
+  LOGIN_FAILED: "auth.login.failed",
+  LOGOUT: "auth.logout",
+  OTP_FAILED: "auth.otp.failed",
+  OTP_SUCCESS: "auth.otp.success",
+  BVN_LOOKUP: "auth.bvn.lookup",
+  NIN_LOOKUP: "auth.nin.lookup", // NIN enumeration detection
+  GEO_VELOCITY: "auth.login.geo_velocity",
   CREDENTIAL_STUFF: "auth.credential.stuffing",
-  SIM_SWAP:         "auth.sim_swap.suspected", // SIM swap fraud signal
-  PHONE_AUTH:       "auth.phone.verified",     // Phone-based auth (OTP/2FA via phone)
+  SIM_SWAP: "auth.sim_swap.suspected", // SIM swap fraud signal
+  PHONE_AUTH: "auth.phone.verified", // Phone-based auth (OTP/2FA via phone)
 
   // HTTP layer (auto-detected by middleware)
-  REQUEST:          "http.request",              // every request — feeds the Events dashboard
-  RATE_LIMIT:       "http.ratelimit.exceeded",
-  XSS_DETECTED:     "http.xss.detected",
-  PATH_TRAVERSAL:   "http.path.traversal",
-  SSRF_ATTEMPT:     "http.ssrf.attempt",
+  REQUEST: "http.request", // every request — feeds the Events dashboard
+  RATE_LIMIT: "http.ratelimit.exceeded",
+  XSS_DETECTED: "http.xss.detected",
+  PATH_TRAVERSAL: "http.path.traversal",
+  SSRF_ATTEMPT: "http.ssrf.attempt",
   JWT_MANIPULATION: "http.jwt.manipulation",
-  SCAN_DETECTED:    "http.scan.detected",
-  IDOR_ATTEMPT:     "user.idor.attempt",
-  SQL_ERROR:        "db.sql.error",
+  SCAN_DETECTED: "http.scan.detected",
+  IDOR_ATTEMPT: "user.idor.attempt",
+  SQL_ERROR: "db.sql.error",
 
   // Firewall (emitted when a custom request filtering rule fires)
-  FIREWALL_BLOCK:            "http.firewall.block",
-  FIREWALL_FLAG:             "http.firewall.flag",
-  FIREWALL_RATE_LIMIT:       "http.firewall.rate_limit",
-  FIREWALL_REDIRECT_HONEYPOT:"http.firewall.redirect_honeypot",
-  FIREWALL_TAG:              "http.firewall.tag",
-  FIREWALL_MONITOR:          "http.firewall.monitor",
-  FIREWALL_CHALLENGE:        "http.firewall.challenge",
-  FIREWALL_TEMP_BLOCK:       "http.firewall.temporary_block",
+  FIREWALL_BLOCK: "http.firewall.block",
+  FIREWALL_FLAG: "http.firewall.flag",
+  FIREWALL_RATE_LIMIT: "http.firewall.rate_limit",
+  FIREWALL_REDIRECT_HONEYPOT: "http.firewall.redirect_honeypot",
+  FIREWALL_TAG: "http.firewall.tag",
+  FIREWALL_MONITOR: "http.firewall.monitor",
+  FIREWALL_CHALLENGE: "http.firewall.challenge",
+  FIREWALL_TEMP_BLOCK: "http.firewall.temporary_block",
 } as const;
 
-export type EventNameValue = typeof EventName[keyof typeof EventName];
+export type EventNameValue = (typeof EventName)[keyof typeof EventName];
 
 // ─── Firewall rule (synced from ingest, cached in SDK) ────────────────────────
 
-export type FirewallField    = "url" | "body" | "header" | "user_agent" | "ip";
+export type FirewallField = "url" | "body" | "header" | "user_agent" | "ip";
 export type FirewallOperator = "contains" | "equals" | "starts_with" | "ends_with" | "regex";
-export type FirewallAction   =
+export type FirewallAction =
   | "block"
   | "flag"
   | "rate_limit"
@@ -225,13 +225,13 @@ export interface EndpointDeclaration {
 // ─── Firewall rule ────────────────────────────────────────────────────────────
 
 export interface FirewallRule {
-  id:             string;
-  field:          FirewallField;
-  headerName?:    string | null;
-  operator:       FirewallOperator;
-  value:          string;
-  action:         FirewallAction;
-  attackType:     string;
+  id: string;
+  field: FirewallField;
+  headerName?: string | null;
+  operator: FirewallOperator;
+  value: string;
+  action: FirewallAction;
+  attackType: string;
   redirectTarget?: string | null;
-  tempBlockMins?:  number | null;
+  tempBlockMins?: number | null;
 }

@@ -3,9 +3,9 @@ import { checkGeoVelocity, resetGeoState } from "../geo-velocity.js";
 
 const GEO_URL = "https://ingest.example.com/v1/geo";
 
-const GEO_LAGOS  = { lat: 6.5,  lon: 3.4,   country: "Nigeria", city: "Lagos"   };
-const GEO_LONDON = { lat: 51.5, lon: -0.1,  country: "UK",      city: "London"  };
-const GEO_ABUJA  = { lat: 9.1,  lon: 7.4,   country: "Nigeria", city: "Abuja"   };
+const GEO_LAGOS = { lat: 6.5, lon: 3.4, country: "Nigeria", city: "Lagos" };
+const GEO_LONDON = { lat: 51.5, lon: -0.1, country: "UK", city: "London" };
+const GEO_ABUJA = { lat: 9.1, lon: 7.4, country: "Nigeria", city: "Abuja" };
 const GEO_LAGOS_LNG = { lat: 6.5, lng: 3.4, country: "Nigeria", city: "Lagos" };
 
 describe("checkGeoVelocity", () => {

@@ -22,13 +22,13 @@
 
 export interface FingerprintResult {
   /** 0-100. ≥55 = likely automated. 100 = definitive known bot UA. */
-  score:         number;
+  score: number;
   /** Human-readable signals that contributed to the score. */
-  signals:       string[];
+  signals: string[];
   /** True when the User-Agent matches a confirmed automated client string. */
   isDefiniteBot: boolean;
   /** The specific known client name when isDefiniteBot is true, e.g. "python-requests". */
-  knownClient:   string | null;
+  knownClient: string | null;
 }
 
 /**
@@ -45,15 +45,15 @@ export interface Http2SettingsResult {
   /** INITIAL_WINDOW_SIZE from client SETTINGS frame (bytes). */
   initialWindowSize: number;
   /** HEADER_TABLE_SIZE from client SETTINGS frame. */
-  headerTableSize:   number;
+  headerTableSize: number;
   /** ENABLE_PUSH from client SETTINGS frame. */
-  enablePush:        boolean;
+  enablePush: boolean;
   /**
    * Automation score contribution (0-20) derived from SETTINGS values.
    * Chrome/modern browsers use ~6 MB window; all Python/curl clients use ~65 KB.
    */
-  score:    number;
-  signals:  string[];
+  score: number;
+  signals: string[];
 }
 
 /**
@@ -63,8 +63,8 @@ export interface Http2SettingsResult {
  * mismatch-based scoring when a lookup database is available.
  */
 export interface UpstreamTlsResult {
-  ja3:  string | null;  // X-JA3-Hash header (HanadaLee / phuslu modules)
-  ja4:  string | null;  // X-JA4 header
+  ja3: string | null; // X-JA3-Hash header (HanadaLee / phuslu modules)
+  ja4: string | null; // X-JA4 header
 }
 
 // ─── Tier 1: Confirmed known-automated User-Agent prefixes/patterns ────────────
@@ -74,33 +74,33 @@ export interface UpstreamTlsResult {
 // Do NOT add speculative patterns.
 const KNOWN_BOT_UA: [RegExp, string][] = [
   // Confirmed: psf/requests utils.py (default_headers)
-  [/^python-requests\//i,          "python-requests"],
+  [/^python-requests\//i, "python-requests"],
   // Confirmed: encode/httpx tests/client/test_headers.py
-  [/^python-httpx\//i,             "python-httpx"],
+  [/^python-httpx\//i, "python-httpx"],
   // Confirmed: aiohttp docs (format: "Python/3.x aiohttp/3.x.x")
-  [/\baiohttp\//i,                 "aiohttp"],
+  [/\baiohttp\//i, "aiohttp"],
   // Confirmed: nodejs/undici issue #1305
-  [/^undici$/i,                    "undici"],
+  [/^undici$/i, "undici"],
   // Confirmed: everything.curl.dev
-  [/^curl\//i,                     "curl"],
+  [/^curl\//i, "curl"],
   // Confirmed: GNU wget docs
-  [/^Wget\//i,                     "wget"],
+  [/^Wget\//i, "wget"],
   // Confirmed: Go net/http DefaultClient (golang.org/pkg/net/http)
-  [/^Go-http-client\//i,           "Go-http-client"],
+  [/^Go-http-client\//i, "Go-http-client"],
   // Confirmed: Java HttpURLConnection default
-  [/^Java\//i,                     "Java"],
+  [/^Java\//i, "Java"],
   // Confirmed: Scrapy docs (scrapy.org)
-  [/^Scrapy\//i,                   "Scrapy"],
+  [/^Scrapy\//i, "Scrapy"],
   // Confirmed: OkHttp (square.github.io/okhttp)
-  [/\bokhttp\//i,                  "okhttp"],
+  [/\bokhttp\//i, "okhttp"],
   // Confirmed: libwww-perl (metacpan.org/pod/LWP)
-  [/^libwww-perl\//i,              "libwww-perl"],
+  [/^libwww-perl\//i, "libwww-perl"],
   // Confirmed: node-fetch (github.com/node-fetch/node-fetch README)
-  [/^node-fetch\//i,               "node-fetch"],
+  [/^node-fetch\//i, "node-fetch"],
   // Confirmed: axios docs (axios-http.com/docs/config_defaults)
-  [/^axios\//i,                    "axios"],
+  [/^axios\//i, "axios"],
   // Confirmed: Ruby net/http default (ruby-doc.org)
-  [/^Ruby$/i,                      "Ruby"],
+  [/^Ruby$/i, "Ruby"],
 ];
 
 // ─── Tier 1: axios-specific Accept header ─────────────────────────────────────
@@ -137,17 +137,17 @@ export function computeBrowserFingerprint(
   headers: Record<string, string | string[] | undefined>,
   ua: string,
 ): FingerprintResult {
-  const signals:       string[] = [];
-  let   score                   = 0;
-  let   isDefiniteBot           = false;
-  let   knownClient: string | null = null;
+  const signals: string[] = [];
+  let score = 0;
+  let isDefiniteBot = false;
+  let knownClient: string | null = null;
 
   // ── Tier 1a: Known automated User-Agent ──────────────────────────────────────
   for (const [pattern, name] of KNOWN_BOT_UA) {
     if (pattern.test(ua)) {
       isDefiniteBot = true;
-      knownClient   = name;
-      score         = 100;
+      knownClient = name;
+      score = 100;
       signals.push(`known_ua:${name}`);
       break;
     }
@@ -161,8 +161,8 @@ export function computeBrowserFingerprint(
   if (!isDefiniteBot && accept === AXIOS_ACCEPT) {
     if (!isBrowserUa(ua)) {
       isDefiniteBot = true;
-      knownClient   = "axios";
-      score         = 100;
+      knownClient = "axios";
+      score = 100;
       signals.push("known_accept:axios");
     } else {
       score += 15;
@@ -180,11 +180,11 @@ export function computeBrowserFingerprint(
   // They are W3C "forbidden" headers — JavaScript cannot set or modify them.
   // Absence = 100% certainty the caller is not a standard browser fetch call.
   // Source: https://www.w3.org/TR/fetch-metadata/
-  const hasSecFetchSite = "sec-fetch-site"  in headers;
-  const hasSecFetchMode = "sec-fetch-mode"  in headers;
+  const hasSecFetchSite = "sec-fetch-site" in headers;
+  const hasSecFetchMode = "sec-fetch-mode" in headers;
 
   if (!hasSecFetchSite && !hasSecFetchMode) {
-    score   += 30;
+    score += 30;
     signals.push("missing_sec_fetch");
   }
 
@@ -195,7 +195,7 @@ export function computeBrowserFingerprint(
   // Exception: undici sends `accept-language: *` — we handle that separately.
   const acceptLang = str(headers["accept-language"]);
   if (!acceptLang) {
-    score   += 25;
+    score += 25;
     signals.push("missing_accept_language");
   }
 
@@ -204,7 +204,7 @@ export function computeBrowserFingerprint(
   // but useful combined with other indicators.
   const acceptEnc = str(headers["accept-encoding"]);
   if (!acceptEnc) {
-    score   += 10;
+    score += 10;
     signals.push("missing_accept_encoding");
   }
 
@@ -215,7 +215,7 @@ export function computeBrowserFingerprint(
   // three together. This pattern is unique to undici.
   // Source: nodejs/undici GitHub issue #1305
   if (hasSecFetchMode && !hasSecFetchSite) {
-    score   += 20;
+    score += 20;
     signals.push("undici_pattern:sec_fetch_mode_without_site");
     knownClient = "undici (Node.js fetch)";
   }
@@ -224,7 +224,7 @@ export function computeBrowserFingerprint(
   // BCP 47 language tag, which browsers always send (e.g. "en-US,en;q=0.9").
   // Source: nodejs/undici issue #1305
   if (acceptLang === "*") {
-    score   += 15;
+    score += 15;
     signals.push("undici_pattern:accept_language_wildcard");
   }
 
@@ -232,10 +232,10 @@ export function computeBrowserFingerprint(
   // without any server opt-in. If the UA claims to be Chrome but Sec-CH-UA
   // is absent, the Chrome UA is likely spoofed (or it's Firefox/Safari, which
   // never send Sec-CH-UA). Source: MDN Sec-CH-UA; Corbado blog.
-  const claimsChrome  = /Chrome\//i.test(ua) && !/Chromium/i.test(ua);
-  const hasSecChUa    = "sec-ch-ua" in headers;
+  const claimsChrome = /Chrome\//i.test(ua) && !/Chromium/i.test(ua);
+  const hasSecChUa = "sec-ch-ua" in headers;
   if (claimsChrome && !hasSecChUa) {
-    score   += 10;
+    score += 10;
     signals.push("chrome_ua_without_sec_ch_ua");
   }
 
@@ -279,20 +279,22 @@ export function extractHttp2Settings(
   // remoteSettings is the Http2Settings object sent by the CLIENT in its
   // SETTINGS frame during the HTTP/2 connection preface.
   // Node.js docs: https://nodejs.org/api/http2.html#http2sessionremotesettings
-  const remote = session["remoteSettings"] as {
-    headerTableSize?:   number;
-    enablePush?:        boolean;
-    initialWindowSize?: number;
-  } | undefined;
+  const remote = session["remoteSettings"] as
+    | {
+        headerTableSize?: number;
+        enablePush?: boolean;
+        initialWindowSize?: number;
+      }
+    | undefined;
 
   if (!remote) return null;
 
   const initialWindowSize = remote.initialWindowSize ?? 65535;
-  const headerTableSize   = remote.headerTableSize   ?? 4096;
-  const enablePush        = remote.enablePush        ?? true;
+  const headerTableSize = remote.headerTableSize ?? 4096;
+  const enablePush = remote.enablePush ?? true;
 
   const signals: string[] = [];
-  let   score              = 0;
+  let score = 0;
 
   // The most discriminating signal: Chrome uses ~6 MB (6,291,456) while ALL
   // Python/curl HTTP/2 clients use the protocol default of 65,535 bytes.
@@ -334,7 +336,7 @@ export function extractUpstreamTls(
 ): UpstreamTlsResult {
   // Try both common header name conventions
   const ja3 = str(headers["x-ja3-hash"]) || str(headers["x-ja3"]) || null;
-  const ja4 = str(headers["x-ja4"])      || null;
+  const ja4 = str(headers["x-ja4"]) || null;
   return { ja3: ja3 || null, ja4: ja4 || null };
 }
 

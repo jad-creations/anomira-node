@@ -66,4 +66,4 @@ body:
     id: extra
     attributes:
       label: Additional context
-      description: Logs with `debug: true`, proxy setup, auth library, or related PRs.
+      description: "Logs with `debug: true`, proxy setup, auth library, or related PRs."

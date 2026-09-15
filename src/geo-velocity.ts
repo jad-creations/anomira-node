@@ -12,20 +12,20 @@
  */
 
 export interface GeoPoint {
-  lat:      number;
-  lng:      number;
-  ip:       string;
-  tsMs:     number;
-  city?:    string;
+  lat: number;
+  lng: number;
+  ip: string;
+  tsMs: number;
+  city?: string;
   country?: string;
 }
 
 export interface GeoVelocityResult {
   isImpossible: boolean;
-  distanceKm:   number;
-  speedKmH:     number;
-  from:         GeoPoint;
-  to:           GeoPoint;
+  distanceKm: number;
+  speedKmH: number;
+  from: GeoPoint;
+  to: GeoPoint;
 }
 
 // In-memory last-login state per userId
@@ -56,10 +56,7 @@ function isPrivateIp(ip: string): boolean {
  * The ingest service uses MaxMind (no rate limits).
  * Returns null for private/loopback IPs or on any network failure.
  */
-async function lookupGeo(
-  ip:         string,
-  lookupUrl?: string,
-): Promise<Omit<GeoPoint, "tsMs"> | null> {
+async function lookupGeo(ip: string, lookupUrl?: string): Promise<Omit<GeoPoint, "tsMs"> | null> {
   if (!ip || isPrivateIp(ip)) return null;
 
   const cached = geoCache.get(ip);
@@ -71,11 +68,15 @@ async function lookupGeo(
   if (!url) return null;
 
   try {
-    const res  = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(2_000) });
     if (!res.ok) return null;
 
-    const data = await res.json() as {
-      lat?: number; lng?: number; lon?: number; country?: string; city?: string;
+    const data = (await res.json()) as {
+      lat?: number;
+      lng?: number;
+      lon?: number;
+      country?: string;
+      city?: string;
     };
 
     // Accept both `lng` (Anomira) and `lon` (ip-api / GeoJSON style)
@@ -84,10 +85,10 @@ async function lookupGeo(
 
     const point: Omit<GeoPoint, "tsMs"> = {
       ip,
-      lat:     data.lat,
+      lat: data.lat,
       lng,
       country: data.country,
-      city:    data.city,
+      city: data.city,
     };
 
     geoCache.set(ip, { point, expiresAt: Date.now() + 3_600_000 });
@@ -99,7 +100,7 @@ async function lookupGeo(
 
 /** Haversine formula — great-circle distance in km */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R    = 6371;
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a =
@@ -108,7 +109,9 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function toRad(deg: number): number { return (deg * Math.PI) / 180; }
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
 
 /**
  * Check for impossible travel on a successful login event.
@@ -119,9 +122,9 @@ function toRad(deg: number): number { return (deg * Math.PI) / 180; }
  * @param lookupUrl - Base URL for geo lookup endpoint (optional)
  */
 export async function checkGeoVelocity(
-  userId:     string,
-  ip:         string,
-  tsMs:       number,
+  userId: string,
+  ip: string,
+  tsMs: number,
   lookupUrl?: string,
 ): Promise<GeoVelocityResult | null> {
   const geo = await lookupGeo(ip, lookupUrl);
@@ -144,17 +147,17 @@ export async function checkGeoVelocity(
   if (prev.ip === ip) return null;
 
   const distanceKm = haversineKm(prev.lat, prev.lng, currentPoint.lat, currentPoint.lng);
-  const hours      = Math.max((tsMs - prev.tsMs) / 3_600_000, 0.001);
-  const speedKmH   = distanceKm / hours;
+  const hours = Math.max((tsMs - prev.tsMs) / 3_600_000, 0.001);
+  const speedKmH = distanceKm / hours;
 
   if (speedKmH < MAX_SPEED_KMH) return null;
 
   return {
     isImpossible: true,
-    distanceKm:   Math.round(distanceKm),
-    speedKmH:     Math.round(speedKmH),
-    from:         prev,
-    to:           currentPoint,
+    distanceKm: Math.round(distanceKm),
+    speedKmH: Math.round(speedKmH),
+    from: prev,
+    to: currentPoint,
   };
 }
 

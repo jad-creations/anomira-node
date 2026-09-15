@@ -28,17 +28,17 @@
 export { AnomiraClient as Anomira } from "./client.js";
 // Backward-compat alias — remove in next major version
 export { AnomiraClient } from "./client.js";
-export { EventName }                     from "./types.js";
+export { EventName } from "./types.js";
 export type {
   AnomiraConfig,
-  AnomiraConfig as SentinelConfig,   // backward-compat alias
+  AnomiraConfig as SentinelConfig, // backward-compat alias
   SdkEvent,
   IngestPayload,
   EventNameValue,
   EndpointDeclaration,
 } from "./types.js";
 export { createExpressMiddleware } from "./middleware/express.js";
-export { createFastifyPlugin }    from "./middleware/fastify.js";
+export { createFastifyPlugin } from "./middleware/fastify.js";
 
 // Convenience: allow both named and default import
 export { AnomiraClient as default } from "./client.js";
