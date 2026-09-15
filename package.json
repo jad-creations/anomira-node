@@ -57,7 +57,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.12.12",
+    "@types/node": "^22.20.2",
     "eslint": "^9.16.0",
     "fastify": "^4.29.1",
     "prettier": "^3.4.2",
