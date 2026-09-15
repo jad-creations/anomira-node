@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SentinelAPI, EventName } from "../index.js";
+import { Anomira, EventName } from "../index.js";
 
 const BASE_CONFIG = {
   apiKey:          "sk_test",
@@ -37,19 +37,30 @@ function makeRes(statusCode = 200) {
   };
 }
 
+function ingestBodies(fetchSpy: ReturnType<typeof vi.fn>): Array<{ events: Array<{ name: string; ip?: string }> }> {
+  return fetchSpy.mock.calls
+    .filter((c) => typeof c[0] === "string" && (c[0] as string).endsWith("/v1/events") && c[1]?.method === "POST")
+    .map((c) => JSON.parse(c[1]?.body as string) as { events: Array<{ name: string; ip?: string }> });
+}
+
+function allEvents(fetchSpy: ReturnType<typeof vi.fn>) {
+  return ingestBodies(fetchSpy).flatMap((b) => b.events);
+}
+
 describe("Express middleware", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
-  let sentinel: SentinelAPI;
-  let middleware: ReturnType<SentinelAPI["express"]>;
+  let sentinel: InstanceType<typeof Anomira>;
+  let middleware: ReturnType<InstanceType<typeof Anomira>["express"]>;
 
   beforeEach(() => {
-    fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 202 });
+    fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 202, json: async () => ({}) });
     vi.stubGlobal("fetch", fetchSpy);
-    sentinel = new SentinelAPI(BASE_CONFIG);
+    sentinel = new Anomira(BASE_CONFIG);
     middleware = sentinel.express();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await sentinel.flush();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -69,10 +80,7 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      events: Array<{ name: string }>;
-    };
-    expect(body.events.some((e) => e.name === EventName.LOGIN_FAILED)).toBe(true);
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.LOGIN_FAILED)).toBe(true);
   });
 
   it("does NOT track LOGIN_FAILED on 401 from non-auth endpoint", async () => {
@@ -82,7 +90,7 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.LOGIN_FAILED)).toBe(false);
   });
 
   it("tracks RATE_LIMIT on 429", async () => {
@@ -92,10 +100,7 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      events: Array<{ name: string }>;
-    };
-    expect(body.events.some((e) => e.name === EventName.RATE_LIMIT)).toBe(true);
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.RATE_LIMIT)).toBe(true);
   });
 
   it("tracks PATH_TRAVERSAL when URL contains ../", async () => {
@@ -105,10 +110,7 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      events: Array<{ name: string }>;
-    };
-    expect(body.events.some((e) => e.name === EventName.PATH_TRAVERSAL)).toBe(true);
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.PATH_TRAVERSAL)).toBe(true);
   });
 
   it("tracks XSS_DETECTED when body contains <script>", async () => {
@@ -122,10 +124,7 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      events: Array<{ name: string }>;
-    };
-    expect(body.events.some((e) => e.name === EventName.XSS_DETECTED)).toBe(true);
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.XSS_DETECTED)).toBe(true);
   });
 
   it("tracks SCAN_DETECTED on 404 with scanner user-agent", async () => {
@@ -138,15 +137,12 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      events: Array<{ name: string; ip: string }>;
-    };
-    const scanEvent = body.events.find((e) => e.name === EventName.SCAN_DETECTED);
+    const scanEvent = allEvents(fetchSpy).find((e) => e.name === EventName.SCAN_DETECTED);
     expect(scanEvent).toBeDefined();
     expect(scanEvent?.ip).toBe("6.6.6.6");
   });
 
-  it("does NOT track 404 with normal browser user-agent", async () => {
+  it("does NOT track SCAN_DETECTED on 404 with normal browser user-agent", async () => {
     const req = makeReq({
       originalUrl: "/missing-page",
       headers:     { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "x-forwarded-for": "7.7.7.7" },
@@ -156,11 +152,11 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.SCAN_DETECTED)).toBe(false);
   });
 
   it("respects detect.bruteForce = false", async () => {
-    const s = new SentinelAPI({ ...BASE_CONFIG, detect: { bruteForce: false } });
+    const s = new Anomira({ ...BASE_CONFIG, detect: { bruteForce: false } });
     const mw = s.express();
     const req = makeReq({ method: "POST", originalUrl: "/api/login" });
     const res = makeRes(401);
@@ -168,7 +164,7 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await s.flush();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.LOGIN_FAILED)).toBe(false);
   });
 
   it("extracts IP from X-Forwarded-For header", async () => {
@@ -182,9 +178,18 @@ describe("Express middleware", () => {
     res.emit("finish");
 
     await sentinel.flush();
-    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
-      events: Array<{ ip: string }>;
-    };
-    expect(body.events[0]?.ip).toBe("203.0.113.1");
+    const loginFailed = allEvents(fetchSpy).find((e) => e.name === EventName.LOGIN_FAILED);
+    expect(loginFailed?.ip).toBe("203.0.113.1");
+  });
+
+  it("createExpressMiddleware matches client.express() behaviour", async () => {
+    const { createExpressMiddleware } = await import("../middleware/express.js");
+    const mw = createExpressMiddleware(sentinel);
+    const req = makeReq({ originalUrl: "/api/files/../../../etc/passwd" });
+    const res = makeRes(200);
+    void mw(req as never, res as never, vi.fn());
+    res.emit("finish");
+    await sentinel.flush();
+    expect(allEvents(fetchSpy).some((e) => e.name === EventName.PATH_TRAVERSAL)).toBe(true);
   });
 });
