@@ -450,9 +450,9 @@ npm start
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and pull request
-guidelines. Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before
-participating.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, how to verify changes
+without the Anomira dashboard, tests, and pull request guidelines. Please
+read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ## Security
 

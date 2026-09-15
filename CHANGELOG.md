@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   security policy, issue/PR templates, CI, Dependabot, and example apps.
 - Example apps run against a local mock ingest so contributors do not need
   Anomira dashboard credentials.
+- Maintainer playbook in `CONTRIBUTING.md`: how to verify without the Anomira
+  dashboard, current test coverage, and release steps.
 
 ## [0.2.7] - 2025-05-17
 
