@@ -11,6 +11,8 @@ import { scanRequestForJwtAttacks } from "./jwt-detect.js";
 import { detectHoneypotType, generateHoneypotResponse, generateCanaryJwt, makeAdminLoginFailed } from "./honeypot-responses.js";
 import { randomBytes } from "node:crypto";
 import { SDK_USER_AGENT } from "./version.js";
+import { hasPathTraversal } from "./path-traversal.js";
+import { scanForXss } from "./xss-detect.js";
 
 interface RequestContext {
   endpoint: string;
@@ -1302,14 +1304,13 @@ function createExpressMiddleware(client: AnomiraClient) {
     }
 
     // ── Detect path traversal before the request reaches the handler ──
-    if (client.config.detect.pathTraversal && (url.includes("../") || url.includes("..%2F"))) {
+    if (client.config.detect.pathTraversal && hasPathTraversal(url)) {
       client.track(EventName.PATH_TRAVERSAL, { ip, userId, meta: { url, method } });
     }
 
     // ── Detect XSS in body (only on POST/PUT/PATCH) ──
     if (client.config.detect.xss && ["POST", "PUT", "PATCH"].includes(method)) {
-      const body = JSON.stringify(req["body"]);
-      if (/<script|javascript:|on\w+=/i.test(body)) {
+      if (scanForXss(req["body"])) {
         client.track(EventName.XSS_DETECTED, { ip, userId, meta: { url, method } });
       }
     }
@@ -1563,7 +1564,7 @@ function createFastifyPlugin(client: AnomiraClient) {
       const method = (req["method"] as string | undefined)?.toUpperCase() ?? "GET";
       const userId = client.config.getUserId(req);
 
-      if (client.config.detect.pathTraversal && (url.includes("../") || url.includes("..%2F"))) {
+      if (client.config.detect.pathTraversal && hasPathTraversal(url)) {
         client.track(EventName.PATH_TRAVERSAL, { ip, userId, meta: { url, method } });
       }
     });
@@ -1613,8 +1614,7 @@ function createFastifyPlugin(client: AnomiraClient) {
       }
 
       if (client.config.detect.xss && ["POST", "PUT", "PATCH"].includes(method)) {
-        const body = JSON.stringify((req as Record<string, unknown>)["body"]);
-        if (/<script|javascript:|on\w+=/i.test(body)) {
+        if (scanForXss((req as Record<string, unknown>)["body"])) {
           client.track(EventName.XSS_DETECTED, { ip, userId, meta: { url, method } });
         }
       }

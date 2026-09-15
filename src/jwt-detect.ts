@@ -89,11 +89,40 @@ export interface JwtDetectionResult {
 // ─── Main detector ────────────────────────────────────────────────────────────
 
 /**
+ * Returns true only when the string looks like a JWT (decodable JOSE header).
+ * Opaque session tokens / UUIDs / random Bearers must NOT be analysed —
+ * otherwise every authenticated request fires a false `missing_signature`.
+ */
+export function looksLikeJwt(token: string): boolean {
+  const parts = token.trim().split(".");
+  // Real JWTs have 2 (stripped sig / alg:none) or 3 segments
+  if (parts.length < 2 || parts.length > 3) return false;
+  if (!parts[0] || parts[0].length < 4) return false;
+  try {
+    const header = JSON.parse(decodeBase64Url(parts[0]!)) as Record<string, unknown>;
+    return (
+      header !== null &&
+      typeof header === "object" &&
+      !Array.isArray(header) &&
+      (typeof header["alg"] === "string" || typeof header["typ"] === "string")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Analyse a single JWT string for header manipulation attacks.
  * Returns a detection result — never throws.
+ * Non-JWT strings are reported as not detected (not as missing_signature).
  */
 export function analyseJwt(token: string): JwtDetectionResult {
   const clean = token.trim();
+
+  // Opaque Bearer tokens are not JWTs — skip silently
+  if (!looksLikeJwt(clean)) {
+    return { detected: false, attack: null, alg: null, detail: "" };
+  }
 
   // ── Check 1: Segment count ─────────────────────────────────────────────────
   const parts = clean.split(".");
@@ -174,18 +203,19 @@ export function scanRequestForJwtAttacks(
 ): JwtDetectionResult | null {
   const candidates: string[] = [];
 
-  // 1. Authorization: Bearer <token>
+  // 1. Authorization: Bearer <token> — only if it looks like a JWT
   const auth = headers["authorization"];
   const authStr = Array.isArray(auth) ? auth[0] : auth;
   if (typeof authStr === "string" && authStr.toLowerCase().startsWith("bearer ")) {
-    candidates.push(authStr.slice(7).trim());
+    const bearer = authStr.slice(7).trim();
+    if (looksLikeJwt(bearer)) candidates.push(bearer);
   }
 
   // 2. Common token body fields
   const TOKEN_FIELDS = new Set(["token", "jwt", "access_token", "accessToken", "id_token", "idToken", "refresh_token", "refreshToken"]);
   if (body && typeof body === "object" && !Array.isArray(body)) {
     for (const [key, val] of Object.entries(body as Record<string, unknown>)) {
-      if (TOKEN_FIELDS.has(key) && typeof val === "string" && val.includes(".")) {
+      if (TOKEN_FIELDS.has(key) && typeof val === "string" && looksLikeJwt(val)) {
         candidates.push(val);
       }
     }
@@ -195,7 +225,7 @@ export function scanRequestForJwtAttacks(
   for (const field of ["token", "jwt", "access_token"]) {
     const val = query[field];
     const str = Array.isArray(val) ? val[0] : val;
-    if (typeof str === "string" && str.includes(".")) candidates.push(str);
+    if (typeof str === "string" && looksLikeJwt(str)) candidates.push(str);
   }
 
   for (const token of candidates) {

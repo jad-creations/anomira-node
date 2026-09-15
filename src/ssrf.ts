@@ -243,12 +243,20 @@ export function scanForSsrf(
     if (typeof v === "string" && v.length > 0) candidates.push({ name: key, value: v });
   }
 
-  // Collect from body (supports flat objects and one level of nesting)
+  // Collect from body (flat keys + one level of nesting)
   if (body && typeof body === "object" && !Array.isArray(body)) {
     const flat = body as Record<string, unknown>;
     for (const [key, val] of Object.entries(flat)) {
-      if (!URL_PARAM_PATTERN.test(key)) continue;
-      if (typeof val === "string" && val.length > 0) candidates.push({ name: key, value: val });
+      if (URL_PARAM_PATTERN.test(key) && typeof val === "string" && val.length > 0) {
+        candidates.push({ name: key, value: val });
+      }
+      if (val && typeof val === "object" && !Array.isArray(val)) {
+        for (const [nk, nv] of Object.entries(val as Record<string, unknown>)) {
+          if (URL_PARAM_PATTERN.test(nk) && typeof nv === "string" && nv.length > 0) {
+            candidates.push({ name: `${key}.${nk}`, value: nv });
+          }
+        }
+      }
     }
   }
 
