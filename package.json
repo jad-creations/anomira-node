@@ -58,7 +58,7 @@
     "@eslint/js": "^10.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.2",
-    "eslint": "^9.16.0",
+    "eslint": "^10.10.0",
     "fastify": "^4.29.1",
     "prettier": "^3.4.2",
     "tsup": "^8.0.2",
