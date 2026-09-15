@@ -16,7 +16,7 @@ Do not open a public issue or pull request for a vulnerability. Follow
 
 ## Prerequisites
 
-- Node.js 18 or later (20 is what CI uses as the primary version)
+- Node.js 18 or later (CI tests on Node 22 and 24)
 - npm 9 or later
 
 ## Local setup
@@ -169,7 +169,7 @@ required to merge or publish the SDK.
 
 Before merging:
 
-- The four PR checks are green on CI (Node 18, 20, and 22).
+- The four PR checks are green on CI (Node 22 and 24).
 - Behavior changes include tests, or a Fastify/CLI smoke is described in the PR
   when tests do not exist yet.
 - No dashboard access is required to approve.
