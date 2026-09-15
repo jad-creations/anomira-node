@@ -75,15 +75,17 @@ async function lookupGeo(
     if (!res.ok) return null;
 
     const data = await res.json() as {
-      lat?: number; lng?: number; country?: string; city?: string;
+      lat?: number; lng?: number; lon?: number; country?: string; city?: string;
     };
 
-    if (data.lat == null || data.lng == null) return null;
+    // Accept both `lng` (Anomira) and `lon` (ip-api / GeoJSON style)
+    const lng = data.lng ?? data.lon;
+    if (data.lat == null || lng == null) return null;
 
     const point: Omit<GeoPoint, "tsMs"> = {
       ip,
       lat:     data.lat,
-      lng:     data.lng,
+      lng,
       country: data.country,
       city:    data.city,
     };
