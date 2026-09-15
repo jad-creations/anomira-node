@@ -59,7 +59,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.2",
     "eslint": "^10.10.0",
-    "fastify": "^4.29.1",
+    "fastify": "^5.12.4",
     "prettier": "^3.4.2",
     "tsup": "^8.0.2",
     "typescript": "^7.0.2",
